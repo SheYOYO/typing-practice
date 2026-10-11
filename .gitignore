@@ -1,0 +1,20 @@
+# ── 操作系统 / 编辑器 ──
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+
+# ── 依赖与构建产物（本项目零依赖、零构建，仅作保险）──
+node_modules/
+dist/
+build/
+*.log
+
+# ── 本机工作区（不入库）──
+# .workbuddy/  交给我用的会话记忆（项目红线等已在 README / 产品底线.md 中）
+# .planning/reference/  复刻时的原站取证素材（页面快照 / 截图），体积大且版权归原站
+.workbuddy/
+.planning/reference/
