@@ -61,11 +61,16 @@
 
 ## 6. Next（唯一起点）
 
-**暂无待办** —— 第 10 轮（打对字色改黑 + 移除清空练习进度）已完成，31 项回归全绿。
+**暂无待办** —— 第 11 轮（发布到 GitHub）已完成。
 
+- 📦 仓库：**https://github.com/SheYOYO/typing-practice**（public）
+  本地已 `git init` + 13 个分层提交；HEAD 与远端 `main` SHA 一致。
+- 🚀 **推送永远走** `python .planning/tools/push_to_github.py`（`--check` 只核验）。
+  ⚠ 本机 `github.com` 解析到不可达 IP，**直接 `git push` 必失败**；
+  该脚本会自动起本地中转绕过（详见 `findings.md` F21）。
 - ⚠ **打对字色是「用户要求」而非原站值**：原站实测 #0086d2 蓝（见 F20.1 四条证据）。
   若之后又要「照搬原站」，把 `css/level.css` 里 `.correct .word_label` 的 `#333333` 换回 `#0086d2`。
-- 原站取证物在 `.planning/reference/origin/`；复现脚本在 `.planning/tools/`
+- 原站取证物在 `.planning/reference/`（**不入库**）；复现脚本在 `.planning/tools/`
   （`regression.cjs` / `e2e_finish.cjs` 需先在根目录起 8899 静态服务）。
 - **已知仍未对齐、等用户发话**（详见 F19.5）：快捷键条原站默认隐藏、启动遮罩
   「鼠标点我 或 按 空格键 开始」、结算页速度/时长单位。

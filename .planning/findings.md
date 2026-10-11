@@ -591,3 +591,70 @@ h3.title{font-size:16px; color:#3E454D; font-weight:500; line-height:24px; margi
 **验收**：`regression.cjs` **31/31 全绿**（新增：清空进度按钮不存在 + 导入/删除按钮仍在 +
 打对 = rgb(51,51,51) + 打错 = rgb(255,94,124) + 深色下打对 = rgb(238,238,238)）；
 `e2e_finish.cjs` 8/8；`file://` 直开 0 报错。
+
+## F21 — 发布到 GitHub：本机 `github.com` 解析到不可达 IP（2026-10-11）
+
+**结果**：仓库 `SheYOYO/typing-practice`（public），13 个分层提交，
+本地 HEAD 与远端 `main` SHA 逐位一致，远端 57 个 blob 与本地逐文件一致。
+
+### F21.1 本次真正卡住的地方（和技能里记的「沙箱屏蔽 github.com」不是一回事）
+
+逐主机实测（`tools` 无关，用 socket 直接测）：
+
+| 主机:端口 | 结果 |
+|---|---|
+| `github.com:443`（= 20.205.243.166） | ✗ TCP 超时（沙箱内 / 沙箱外**都一样**） |
+| `140.82.112.3:443` · `140.82.113.3:443` · `…116.3` · `…121.3` · `20.27.177.113` · `4.237.22.34` | ✓ TCP + **TLS 握手成功，证书 CN=github.com** |
+| `api.github.com:443` / `codeload.github.com:443` / `objects.githubusercontent.com:443` | ✓ |
+| `github.com:22` / `ssh.github.com:443` | ✓（SSH banner `SSH-2.0-3bc2e72`） |
+| 系统代理 `CONNECT github.com:443` | ✗ 502 |
+| 本机常见代理端口 7890/10809/10808/… | 全部没有监听 |
+
+★ **根因**：本机 DNS 把 `github.com` 解析到 **`20.205.243.166`（不可达）**，
+而 GitHub 其它边缘 IP 是好的。所以 `git push` 报的是
+`Failed to connect to github.com:443 after 21084 ms` 或 `schannel: server closed abruptly`
+—— **不是沙箱、不是代理、不是没凭据**，是**域名解析到了一个坏 IP**。
+
+⇒ `dangerouslyDisableSandbox` 对这个问题**完全无效**（沙箱外实测同样超时）。
+
+### F21.2 解法：本地 CONNECT 中转（不改 hosts、不动系统配置）
+
+起一个**只监听 `127.0.0.1`** 的极简 CONNECT 代理，把 `github.com:443`
+转发到实测可达的边缘 IP，`git push` 走 `-c http.proxy=http://127.0.0.1:<port>`：
+
+```python
+conn.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+up = socket.create_connection((GOOD_IP, 443), timeout=10)   # GOOD_IP=140.82.112.3
+# 然后 双向 pipe() 即可
+```
+
+- 已固化成 **`.planning/tools/push_to_github.py`**（仓库内，含 `--check`）。
+- 脚本逻辑：`shutil.which('git')` 定位 git → 凭据管理器读 token（不落盘）→
+  `direct_ok()` 探 `github.com:443`，通则直连、不通则自动起中转 → push → 用
+  `GET /git/ref/heads/<branch>` 核验 SHA。
+- 实测：`POST git-receive-pack (507500 bytes)`、`* [new branch] main -> main`、rc=0。
+
+### F21.3 顺带确认的既有结论仍然成立
+
+- 全局 `url.insteadOf` 仍把 github.com 改写成 `gh-proxy.com`（只读镜像）。
+  ⇒ `git remote -v` 显示 `https://gh-proxy.com/https://github.com/...` **是显示层改写，不是错误**；
+  推送必须带 `GIT_CONFIG_GLOBAL=<空文件>` 隔离，脚本里已固定这一步。
+- `git branch --set-upstream-to=origin/main` 会报 `does not exist`
+  （本环境 git 写 `refs/remotes/**` 静默失效）—— 按旧结论**不纠缠**，
+  判「推没推成功」只认 `rev-parse HEAD` == 远端 `ref/heads/main`。
+- 仓库根目录**铺平**（`README.md` 等直接放根），只在必要处保留子目录。
+
+### F21.4 提交分层（用户要求的「一个一个上传」）
+
+13 个提交，按依赖自底向上，便于后期按模块 `git log -- js/engine.js` 回溯：
+
+```
+chore: 仓库初始化（.gitignore / .gitattributes）
+feat(util) → feat(pinyin) → feat(audio) → feat(articles)
+feat(engine) → feat(result) → feat(app)
+style: 样式 → assets: bg → feat: 入口与启动脚本
+docs: README/产品底线/CHANGELOG → docs(planning): 开发档案与回归脚本
+```
+
+`.gitignore` 排除 `.workbuddy/`（会话记忆）与 `.planning/reference/`（原站取证素材）。
+`.gitattributes` 用 `* -text` 禁用一切行尾转换；`启动.cmd` 规范为 CRLF。

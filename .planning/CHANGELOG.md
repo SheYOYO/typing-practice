@@ -185,3 +185,32 @@
 ## 更早的批次
 
 无（v0.1 为首版）。
+
+---
+
+## v0.11 — 首次发布到 GitHub（2026-10-11）
+
+**他一句话**：帮我把这个项目上传到我的 GitHub 仓库上，新建仓库，注意程序员的做法，
+一个一个上传，方便后期维护，命名为打字练习的英语，要申明项目特色。
+
+**做了什么**：
+- 新建公开仓库 **`SheYOYO/typing-practice`**（`typing-practice` = 「打字练习」的英文）。
+- `git init -b main`，按模块分层提交 **13 个提交**：
+  `chore(初始化) → feat(util) → feat(pinyin) → feat(audio) → feat(articles) →
+   feat(engine) → feat(result) → feat(app) → style → assets(bg) → feat(入口) →
+   docs(README/红线/CHANGELOG) → docs(.planning 开发档案)`。
+- 仓库根铺平：`README.md` / `CHANGELOG.md` / `index.html` / `css/` / `js/` / `bg/` /
+  `产品底线.md` / `启动.cmd` / `.planning/`，打开就能看懂。
+- `README.md` 按用户要求**申明项目特色**（6 条）+ 技术实现 + 目录结构 + 回归方法 + 版权声明。
+- `.gitignore` 排除 `.workbuddy/`（会话记忆）与 `.planning/reference/`（原站取证素材，体积大且版权归原站）。
+- `.gitattributes` 用 `* -text` 禁用一切行尾转换；`启动.cmd` 规范为 CRLF。
+
+★ **最要紧的坑（本地网络）**：本机 DNS 把 `github.com` 解析到 `20.205.243.166`，
+该 IP **不可达**（直连 443 超时、系统代理 `CONNECT` 返回 502），
+但 GitHub 其它边缘 IP（`140.82.112.3` 等）**直连+TLS 完全正常**。
+→ 解法：起一个**仅监听 127.0.0.1 的临时 CONNECT 中转**，把 `github.com:443` 转到可用 IP。
+已固化成 `.planning/tools/push_to_github.py`（含 `--check`，凭据从凭据管理器读、不落盘）。
+
+**验收**：`POST git-receive-pack (507500 bytes)` 成功；本地 HEAD 与远端 `main`
+**SHA 逐位一致**（`3759b00…`）；远端 **57 个 blob 与本地逐文件完全一致**；
+远端 13 个提交信息与本地一一对应；顶层目录已铺平；无工作区/取证素材混入。

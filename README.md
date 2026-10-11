@@ -6,6 +6,8 @@
 看字打汉字：屏幕上给出文章，你用手指在键盘上把它敲出来。
 **拼音只做提示，判分只看你打出来的汉字对不对**（逐位比对，一个标点都不放过）。
 
+仓库地址：<https://github.com/SheYOYO/typing-practice>
+
 ---
 
 ## ✨ 项目特色
@@ -107,6 +109,28 @@ CHANGELOG.md          版本变更记录
 - `CHANGELOG.md` —— 完整版变更记录（含每版验收数据）
 - `task_plan.md` / `progress.md` —— 分阶段计划与进度
 - `tools/` —— **可复跑的无头回归脚本**（见下）
+
+---
+
+## 🔧 维护与发布
+
+仓库已按模块分好提交历史（`util → pinyin → audio → articles → engine → result → app → 样式 → 素材 → 入口 → 文档`），
+改完之后照常走 git 即可：
+
+```bash
+git add -A
+git commit -m "fix: 修掉 XXX"
+python .planning/tools/push_to_github.py     # 推送 + 自动核验本地/远端 SHA 是否一致
+```
+
+> ⚠ 本机把 `github.com` 解析到一个**不可达的 IP**，直接 `git push` 会超时、走系统代理也是 502。
+> `push_to_github.py` 会自动起一个 **仅监听 127.0.0.1 的临时中转**，把 `github.com:443`
+> 转发到实测可达的 GitHub 边缘 IP，推完即关（不改 hosts、不动系统配置）。
+> 令牌从 **Windows 凭据管理器**读取，**不落盘、不打印明文**。
+
+```bash
+python .planning/tools/push_to_github.py --check   # 只核验，不推送
+```
 
 ---
 
