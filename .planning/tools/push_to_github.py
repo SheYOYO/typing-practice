@@ -270,39 +270,66 @@ def main():
         env["GIT_TERMINAL_PROMPT"] = "0"      # 绝不交互卡死
         env["GCM_INTERACTIVE"] = "never"
 
-        cfg = ["-c", "credential.helper="]
-        srv = None
-        if direct_ok():
-            print("网络    : github.com:443 直连可达，直接推送")
-        else:
-            ip = pick_ip()
-            if not ip:
-                print("✗ github.com 直连不通，且没有可用边缘 IP")
-                return 1
-            srv, port = start_relay(ip)
-            print("网络    : 直连不通 → 启用本地中转 127.0.0.1:%d → %s:443" % (port, ip))
-            cfg += ["-c", "http.proxy=http://127.0.0.1:%d" % port]
-            time.sleep(0.3)
+        # Windows 的 schannel 要做证书吊销检查（CRL/OCSP），本机到吊销服务器的出口不通，
+        # 会直接报 CRYPT_E_REVOCATION_OFFLINE (0x80092013) 让 push 失败；
+        # `http.schannelCheckRevoke=false` 挡不住（握手阶段就断）。
+        # 改用 OpenSSL 后端即可（证书链照样校验，只是不做吊销列表查询）。
+        # 顺序按「实测能通」排：OpenSSL 在前，schannel 兜底。
+        base = ["-c", "credential.helper=", "-c", "http.schannelCheckRevoke=false"]
+        variants = [
+            ("改用 OpenSSL 后端", ["-c", "http.sslBackend=openssl"]),
+            ("默认 schannel 后端", []),
+        ]
 
         url = "https://x-access-token:%s@github.com/%s/%s.git" % (tok, owner, repo)
-        print("\n== git push ==")
-        r = subprocess.run(
-            [GIT, "-C", REPO] + cfg + ["push", "-v", url, "%s:%s" % (branch, branch)],
-            env=env, capture_output=True, text=True, encoding="utf-8",
-            errors="replace", timeout=900)
-        print((r.stdout + r.stderr).replace(tok, "***").strip()[-1200:])
-        if srv:
+        srv = None
+        try:
+            if direct_ok():
+                print("网络    : github.com:443 直连可达")
+                routes = [("直连", [])]
+            else:
+                routes = []
+            ip = pick_ip()
+            if not direct_ok() and not ip:
+                print("✗ github.com 直连不通，且没有可用边缘 IP")
+                return 1
+            if ip:
+                srv, port = start_relay(ip)
+                print("网络    : 本地中转 127.0.0.1:%d → %s:443（备选）" % (port, ip))
+                routes.append(("中继", ["-c", "http.proxy=http://127.0.0.1:%d" % port]))
+                time.sleep(0.3)
+
+            ok = False
+            last = None
+            for rname, rcfg in routes:
+                for vname, vcfg in variants:
+                    print("\n== git push [%s / %s] ==" % (rname, vname))
+                    r = subprocess.run(
+                        [GIT, "-C", REPO] + base + rcfg + vcfg +
+                        ["push", "-v", url, "%s:%s" % (branch, branch)],
+                        env=env, capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", timeout=900)
+                    out = (r.stdout + r.stderr).replace(tok, "***").strip()
+                    print(out[-900:])
+                    if r.returncode == 0:
+                        ok = True
+                        break
+                    last = out
+                if ok:
+                    break
+            if not ok:
+                print("\n✗ push 全部方式失败")
+                return 1
+        finally:
+            if srv:
+                try:
+                    srv.close()
+                except Exception:
+                    pass
             try:
-                srv.close()
+                os.remove(empty)
             except Exception:
                 pass
-        try:
-            os.remove(empty)
-        except Exception:
-            pass
-        if r.returncode != 0:
-            print("✗ push 失败 rc=%s" % r.returncode)
-            return 1
 
     local = git(["rev-parse", "HEAD"]).stdout.strip()
     try:

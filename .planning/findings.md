@@ -717,3 +717,22 @@ inp.style.fontSize = PER_PROBE_FONT + 'px';   // 只钉「测量探针」
   在 `engine.mount` 渲染前统一过一遍，覆盖内置 / 导入 / 历史文章；导入时也过滤一次。
 
 **验收**：`regression.cjs` 41/41；`e2e_finish.cjs` 8/8；`file://` per=27 / 0 报错。
+
+### F21.5 追加（第 12 轮）：schannel 证书吊销检查离线 → 换 OpenSSL 后端
+
+第 12 轮首次推送时冒出一个新错误：
+
+```
+schannel: next InitializeSecurityContext failed: CRYPT_E_REVOCATION_OFFLINE (0x80092013)
+```
+
+**根因**：Windows 的 TLS 后端 schannel 默认要查证书吊销列表（CRL/OCSP），
+本机到吊销服务器的出口不通 → 握手直接失败。
+`-c http.schannelCheckRevoke=false` **挡不住**（握手阶段就断，配置项来不及生效）。
+
+**解法**：改用 **OpenSSL 后端** `-c http.sslBackend=openssl`
+（证书链照常校验，只是不做吊销查询）。实测同一条 push 立刻成功：
+`ddd1944..4e12d5b  main -> main`。
+
+`push_to_github.py` 已改成**重试阶梯**：先 OpenSSL，再 schannel 兜底，
+直连与本地中继两种路由都各试一遍 —— 以后不用再手工判断该用哪种组合。
