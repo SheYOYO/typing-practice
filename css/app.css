@@ -1,0 +1,300 @@
+/* app.css —— 主界面（文章列表 / 导入）与结算页样式 */
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
+  background: #eef4fb;
+  color: #26303c;
+  -webkit-font-smoothing: antialiased;
+}
+#app { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ---------------- 通用按钮 ---------------- */
+.btn {
+  font-family: inherit; font-size: 14px; padding: 8px 18px; border-radius: 999px;
+  border: 1px solid #d5dee8; background: #fff; color: #3a4656; cursor: pointer;
+  transition: all .18s ease;
+}
+.btn:hover { border-color: #33AFFF; color: #1e88e5; transform: translateY(-1px); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn-primary { background: linear-gradient(135deg, #35b3ff, #1e88e5); border-color: transparent; color: #fff; }
+.btn-primary:hover { color: #fff; box-shadow: 0 6px 16px rgba(30, 136, 229, .35); }
+/* .btn-mini 已随「清空练习进度」按钮一并移除（全项目仅那一处使用） */
+
+/* ---------------- 主界面：头部 ---------------- */
+.home_header {
+  padding: 44px 24px 26px;
+  text-align: center;
+  background: linear-gradient(160deg, #dff0ff 0%, #eef4fb 62%, #eef4fb 100%);
+}
+.home_header h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: 1px; color: #10365e; }
+.home_header .sub { margin: 0; color: #5d7590; font-size: 14px; }
+
+.home_main {
+  flex: 1; width: min(1080px, 94vw); margin: 0 auto 40px;
+  display: flex; flex-direction: column; gap: 22px;
+}
+.panel {
+  background: #fff; border-radius: 14px; padding: 20px 22px;
+  box-shadow: 0 4px 22px rgba(30, 80, 140, .08);
+}
+.panel h2 { margin: 0 0 14px; font-size: 17px; color: #10365e; font-weight: 600; }
+
+/* 导入 */
+.import_panel .imp_row { display: flex; gap: 12px; margin-bottom: 10px; }
+.import_panel input {
+  font-family: inherit; font-size: 14px; padding: 9px 12px; border-radius: 8px;
+  border: 1px solid #d5dee8; outline: none; flex: 1;
+}
+.import_panel input:focus { border-color: #33AFFF; box-shadow: 0 0 0 3px rgba(51, 175, 255, .15); }
+#import_title { flex: 2; }
+.import_panel textarea {
+  font-family: inherit; font-size: 14px; line-height: 1.7; width: 100%; height: 130px;
+  padding: 10px 12px; border-radius: 8px; border: 1px solid #d5dee8; outline: none; resize: vertical;
+}
+.import_panel textarea:focus { border-color: #33AFFF; box-shadow: 0 0 0 3px rgba(51, 175, 255, .15); }
+.imp_actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.imp_tip { font-size: 13px; color: #2e9e5b; }
+.imp_count {
+  font-size: 13px; color: #7a8798; font-variant-numeric: tabular-nums;
+  padding: 2px 10px; border-radius: 20px; background: #f2f5f9; white-space: nowrap;
+}
+.imp_hint { font-size: 12.5px; color: #93a2b3; margin-top: 8px; line-height: 1.6; }
+.imp_count.warn  { color: #b26a00; background: #fff5e6; }
+.imp_count.over  { color: #c02b3d; background: #ffe9ec; font-weight: 600; }
+
+/* 列表 */
+.list_head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.list_head h2 { margin: 0; }
+/* 文章选择：原站 .lesson-item 的圆角正方形（220×230 / radius 15 / 蓝调柔影）
+   中间内容按需求换成「文章名 + 作者 + 是否完成（打钩）」 */
+.article_list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 220px));
+  gap: 20px; justify-content: start;
+}
+.a_card {
+  position: relative; width: 220px; height: 230px; overflow: hidden;
+  border-radius: 15px; background: #fff; cursor: pointer;
+  box-shadow: 0 4px 30px rgba(0, 80, 179, .08);
+  transition: box-shadow .3s ease, transform .3s cubic-bezier(.25, .8, .25, 1), border-color .3s ease;
+  display: flex; flex-direction: column; padding: 0;
+  border: 1px solid #eaf0f8;
+}
+.a_card:hover,
+.a_card:focus-visible {
+  box-shadow: 0 8px 30px rgba(0, 80, 179, .12);
+  transform: translateY(-3px);
+  border-color: #d7e6f6;
+  outline: none;
+}
+/* 上区（原站是封面图位）：文章名 + 作者，垂直居中于整卡 */
+.a_cover {
+  flex: 1 1 auto; min-height: 0; box-sizing: border-box; padding: 6px 16px 0;
+  background: #f5f8fc; border-radius: 15px 15px 0 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; transition: background .3s ease;
+}
+.a_card.is_done .a_cover { background: #f2faf5; }
+/* 文章名：字号翻倍（18 → 36px）；过长时只显示前面部分 + 三个点省略
+   （-webkit-line-clamp 2 行：绝大多数标题能完整显示，超长才截） */
+.a_name {
+  font-size: 36px; font-weight: 600; color: #3E454D; line-height: 1.25;
+  max-width: 100%; letter-spacing: .5px;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; word-break: break-all;
+}
+.a_author {
+  font-size: 13px; color: #7d8ea1; margin-top: 10px;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 下区：字数 + 状态按钮（贴底，高度随内容） */
+.a_body {
+  flex: 0 0 auto; box-sizing: border-box; padding: 0 12px 12px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.a_foot {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 13px; color: #555;
+}
+.a_meta { font-size: 12.5px; color: #7d8ea1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.a_bt {
+  flex: 0 0 auto; font-size: 13px; color: #fff; background: #2f9de0;
+  border-radius: 10px; padding: 2px 9px; line-height: 19px;
+  transition: background .3s ease;
+}
+.a_card.is_done .a_bt { background: #2e9e5b; }
+/* 完成打钩：右上角圆形徽标 */
+.a_check {
+  position: absolute; top: 10px; right: 10px; width: 26px; height: 26px;
+  border-radius: 50%; background: #2e9e5b; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 6px rgba(46, 158, 91, .35);
+}
+/* 左上角序号：按列表顺序动态生成（增删自动重排），完成转绿，悬停加深 */
+.a_no {
+  position: absolute; top: 10px; left: 14px;
+  font-size: 22px; font-weight: 500; line-height: 1;
+  color: #adbfd2; font-variant-numeric: tabular-nums; letter-spacing: -.5px;
+  transition: color .3s ease, transform .3s cubic-bezier(.25, .8, .25, 1);
+  user-select: none;
+}
+.a_card.is_done .a_no { color: #7fc9a2; }
+.a_card:hover .a_no { color: #8fa6bd; transform: translateY(-1px); }
+.a_card.is_done:hover .a_no { color: #4fb080; }
+/* 删除按钮：右上角圆形 ×，悬停才浮现（避开左上角序号与右上角对勾） */
+.a_del {
+  position: absolute; top: 14px; right: 10px; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  font-size: 16px; line-height: 1; color: #fff; background: rgba(192, 43, 61, .9);
+  border: none; border-radius: 50%; cursor: pointer;
+  opacity: 0; transform: scale(.85);
+  transition: opacity .3s ease, transform .3s cubic-bezier(.25, .8, .25, 1), background .2s ease;
+}
+.a_card.is_done .a_del { right: 44px; }
+.a_card:hover .a_del,
+.a_card:focus-within .a_del { opacity: 1; transform: scale(1); }
+.a_del:hover { background: #a01f2e; }
+/* 最好成绩：绝对定位在底部信息行上方，不参与布局，避免把文章名挤得上下浮动 */
+.a_best {
+  position: absolute; left: 12px; right: 12px; bottom: 34px;
+  font-size: 12px; color: #2b8fd1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.a_meta { font-size: 12.5px; color: #7d8ea1; }
+
+/* ---------------- 删除文章（按钮式：点击激活 → 再点卡片即删除） ---------------- */
+/* 「删除文章」按钮与「导入文档」「填入示例文本」同一套 .btn 观感，只是激活时转红 */
+.btn-danger { background: #fff; border-color: #f0d3d8; color: #c02b3d; }
+.btn-danger:hover:not(:disabled) { border-color: #c02b3d; color: #c02b3d; background: #fff5f7; }
+.btn.is_active {
+  background: linear-gradient(135deg, #f2566c, #c02b3d);
+  border-color: transparent; color: #fff;
+}
+/* 悬停/聚焦时必须自己重申红渐变，否则会被 .btn-danger:hover 的浅粉底盖掉 */
+.btn.is_active:hover,
+.btn.is_active:focus-visible {
+  background: linear-gradient(135deg, #f2566c, #c02b3d);
+  border-color: transparent; color: #fff;
+  box-shadow: 0 6px 16px rgba(192, 43, 61, .35);
+}
+
+/* 删除模式下的卡片：红色描边 + 悬停出现「点击删除」蒙层 */
+.a_card.is_delmode {
+  border-color: #f3b8c2;
+  box-shadow: 0 4px 30px rgba(190, 40, 60, .10);
+  cursor: pointer;
+}
+.a_card.is_delmode:hover {
+  border-color: #e0556b;
+  box-shadow: 0 8px 30px rgba(190, 40, 60, .18);
+}
+.a_card.is_delmode::after {
+  content: '点击删除';
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 600; color: #fff; letter-spacing: 2px;
+  /* 不透明渐变：卡片里的名字/序号必须完全被盖住，否则会与文字叠字 */
+  background: linear-gradient(160deg, #d94359, #c02b3d);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+  opacity: 0; transition: opacity .25s ease;
+}
+.a_card.is_delmode:hover::after,
+.a_card.is_delmode:focus-visible::after { opacity: 1; }
+/* 悬停时正文淡出：名字/序号不得与「点击删除」文字叠在一起 */
+.a_card.is_delmode .a_cover { transition: background .3s ease, opacity .22s ease; }
+.a_card.is_delmode .a_body,
+.a_card.is_delmode .a_no,
+.a_card.is_delmode .a_check,
+.a_card.is_delmode .a_best { transition: opacity .22s ease; }
+.a_card.is_delmode:hover .a_cover,
+.a_card.is_delmode:hover .a_body,
+.a_card.is_delmode:hover .a_no,
+.a_card.is_delmode:hover .a_check,
+.a_card.is_delmode:hover .a_best,
+.a_card.is_delmode:focus-visible .a_cover,
+.a_card.is_delmode:focus-visible .a_body,
+.a_card.is_delmode:focus-visible .a_no,
+.a_card.is_delmode:focus-visible .a_check,
+.a_card.is_delmode:focus-visible .a_best { opacity: 0; }
+/* 内置文章不可删除：删除模式下灰化 */
+.a_card.is_delmode.is_locked { opacity: .5; cursor: not-allowed; }
+.a_card.is_delmode.is_locked:hover { border-color: #f3b8c2; box-shadow: 0 4px 30px rgba(190, 40, 60, .10); }
+.a_card.is_delmode.is_locked::after {
+  content: '内置 · 不可删';
+  background: linear-gradient(160deg, #7b8899, #5a697a);
+  font-size: 15px; letter-spacing: 1px;
+}
+/* 删除模式下隐藏卡片右上角那个 ×（点卡片即可删，避免两个入口打架） */
+.a_card.is_delmode .a_del { display: none; }
+/* 列表标题旁的删除模式提示条 */
+.list_tip {
+  font-size: 12.5px; color: #c02b3d; background: #fff5f7;
+  border: 1px solid #f0d3d8; border-radius: 999px; padding: 4px 12px;
+  animation: tipIn .25s ease;
+}
+@keyframes tipIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+/* 删除后的提示 + 撤销 */
+.imp_tip .undo {
+  margin-left: 8px; font-size: 12px; padding: 2px 10px; border-radius: 999px;
+  border: 1px solid #b9e3c9; background: #eafaf0; color: #1f8f4d; cursor: pointer;
+  transition: all .18s ease;
+}
+.imp_tip .undo:hover { background: #1f8f4d; border-color: #1f8f4d; color: #fff; }
+
+.home_footer { text-align: center; font-size: 12px; color: #9aa9ba; padding: 0 0 26px; }
+
+/* ---------------- 结算页 ---------------- */
+.app_result { padding: 30px 20px 60px; background: linear-gradient(170deg, #eaf6ff, #eef4fb 40%); }
+.result_wrap {
+  background: #fff; border-radius: 18px; padding: 26px 30px 22px;
+  box-shadow: 0 10px 40px rgba(20, 70, 130, .12);
+}
+.stars_row { display: flex; gap: 36px; align-items: center; flex-wrap: wrap; }
+.stars_col { flex: 1; min-width: 280px; }
+.stars_list { list-style: none; display: flex; gap: 10px; margin: 0 0 12px; padding: 0; justify-content: center; }
+.stars_list li { position: relative; width: 46px; height: 46px; font-size: 42px; line-height: 46px; text-align: center; }
+.stars_list .star-empty { color: #dfe6ee; }
+.stars_list .star-image { position: absolute; inset: 0; color: #ffce3d; display: none; }
+.stars_list li.on .star-image { display: block; animation: pop .35s ease both; }
+.stars_list li.on .star-empty { visibility: hidden; }
+@keyframes pop { 0% { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.18); } 100% { transform: scale(1); opacity: 1; } }
+.star_emoj { font-size: 92px; text-align: center; line-height: 1; }
+.is_failed .star_emoj { filter: grayscale(.15); }
+
+.reward_h h3 { margin: 0 0 2px; font-size: 26px; color: #10365e; }
+.result_sub { margin: 0 0 18px; font-size: 13.5px; color: #7d8ea1; }
+.reward_list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.reward_list li { display: flex; align-items: center; gap: 12px; }
+.reward_tit { flex: 0 0 64px; font-size: 13.5px; color: #4a5b6e; }
+.reward_txt { flex: 0 0 78px; font-size: 15px; font-weight: 600; color: #1e88e5; }
+.reward_progress { flex: 1; height: 9px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
+.reward_progress i { display: block; height: 100%; border-radius: 999px; transition: width .8s cubic-bezier(.25,.8,.25,1); }
+.reward_score { flex: 0 0 46px; font-size: 12.5px; color: #7d8ea1; text-align: right; }
+
+.reach_box { margin-top: 26px; border-top: 1px dashed #e2eaf3; padding-top: 18px; }
+.reach_head { font-size: 14px; color: #4a5b6e; margin-bottom: 14px; }
+.reach_head b { color: #ff8a00; font-size: 17px; }
+.count5 { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 12px; }
+.count5 li {
+  text-align: center; padding: 8px 4px 10px; border-radius: 10px;
+  background: #f8fafd; border: 1px solid #edf2f8; filter: grayscale(1); opacity: .55;
+  transition: all .3s ease;
+}
+.count5 li.on { filter: none; opacity: 1; background: #fff8ec; border-color: #ffe0b0; }
+.count5 li.cur { box-shadow: 0 0 0 2px #ffb340, 0 6px 18px rgba(255, 160, 0, .25); transform: translateY(-2px); }
+.count5 .title { margin: 0 0 4px; font-size: 12.5px; color: #4a5b6e; font-weight: 600; }
+.count5 .icon { font-size: 26px; line-height: 1.2; }
+.count5 .strip { height: 5px; border-radius: 999px; background: #e9eff6; margin: 6px 8px 5px; overflow: hidden; }
+.count5 li.on .strip i { display: block; height: 100%; background: linear-gradient(90deg, #ffc74d, #ff9a1f); }
+.count5 .reach-tips { margin: 0; font-size: 11px; color: #93a2b3; }
+.count5 li.on .reach-tips { color: #e08a00; }
+
+.result_actions { display: flex; justify-content: center; gap: 14px; margin-top: 28px; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .count5 { grid-template-columns: repeat(3, 1fr); }
+  .stars_row { gap: 16px; }
+  .star_emoj { font-size: 64px; }
+}

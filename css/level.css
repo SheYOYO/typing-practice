@@ -1,0 +1,429 @@
+/* level.css —— 打字交互页样式
+   逐项对齐原站 v.mamioo.com/static/dazi/level.css（53KB 原版），
+   保证线条、宽度、颜色深浅、圆角、阴影等交互组件观感还原。
+   未搬原站私有素材（Live2D 桌宠 / 字体图标 / WubiUnits 字体 / 星级图片）。
+
+   与原站的差异（有意保留，均在注释中标注 [差异]）：
+     · 顶栏工具用文字字符代替 iconfont，故不套用 text-indent:-6999px
+     · .level_keyinfo 原站 opacity:0，这里常显（快捷键提示是有用信息）
+     · .word_box 宽度由 JS 按真实排版测量后写死，保证「打出的字」与「上方目标字」逐格对齐
+*/
+
+:root {
+  --hz-size: 30px;      /* 汉字字号（原站 .level_para_line 为 30px） */
+  --py-size: 14px;
+}
+
+/* 字号档位：**原站原值** `.font_label_size1~9 .word_label{font-size:16/20/30/40/50/60/70/80/90px}`
+   （原站设置项叫「中文大小」，滑杆 1~9，默认 3 → 30px；这里用 CSS 变量承载同一组数值） */
+.font_label_size1 { --hz-size: 16px; } .font_label_size2 { --hz-size: 20px; }
+.font_label_size3 { --hz-size: 30px; } .font_label_size4 { --hz-size: 40px; }
+.font_label_size5 { --hz-size: 50px; } .font_label_size6 { --hz-size: 60px; }
+.font_label_size7 { --hz-size: 70px; } .font_label_size8 { --hz-size: 80px; }
+.font_label_size9 { --hz-size: 90px; }
+
+/* ---------------- 页面骨架 ---------------- */
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
+  background: #EDF6FF;
+  color: #333;
+}
+/* 原站：.level_body { display:flex; flex-direction:column; height:100vh; background:#EDF6FF; min-width:600px } */
+.level_wrap {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #EDF6FF;
+  min-width: 600px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 原站 .level_box *::-webkit-scrollbar 系列 */
+.level_wrap *::-webkit-scrollbar { width: 6px; height: 1px; }
+.level_wrap *::-webkit-scrollbar-thumb { border-radius: 6px; background-color: rgba(135, 136, 136, .67); }
+.level_wrap *::-webkit-scrollbar-track {
+  box-shadow: inset 0 0 5px rgba(0, 0, 0, .2); background: #ededed; border-radius: 8px;
+}
+
+/* ---------------- 背景主题（照搬原站 .level_body.bgX .level_box::before） ----------------
+   原站：position:fixed; top:0; left:0; width:100%; height:100vh;
+        background-repeat:no-repeat; background-size:100% 100%;
+        background-position:center; opacity:0.5; z-index:-6999
+   这里把 z-index 改为 0（内容层提为 1），避免负层级被父背景色遮挡，视觉效果一致。
+   图片为原站 11 套主题，已下载到 bg/ 目录，离线可用。 */
+.level_wrap::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100vh;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: center;
+  opacity: 0;                 /* 默认（无背景）时完全透明 */
+  z-index: 0;
+  pointer-events: none;
+  transition: opacity .25s ease;
+}
+.level_wrap.bg_set::before { opacity: .5; }
+
+.level_wrap.bg0::before { background-image: url('../bg/levelbg0.webp'); }
+.level_wrap.bg1::before { background-image: url('../bg/levelbg1.webp'); }
+.level_wrap.bg2::before { background-image: url('../bg/levelbg2.webp'); }
+.level_wrap.bg3::before { background-image: url('../bg/levelbg3.webp'); }
+.level_wrap.bg4::before { background-image: url('../bg/levelbg4.webp'); }
+.level_wrap.bg5::before { background-image: url('../bg/levelbg5.webp'); }
+.level_wrap.bg6::before { background-image: url('../bg/levelbg6.webp'); }
+.level_wrap.bg7::before { background-image: url('../bg/levelbg7.webp'); }
+.level_wrap.bg8::before { background-image: url('../bg/levelbg8.webp'); }
+.level_wrap.bg9::before { background-image: url('../bg/levelbg9.webp'); }
+.level_wrap.bga::before { background-image: url('../bg/levelbga.webp'); }
+
+/* 有背景时正文汉字加深（原站 .bg0~.bg9 .char_char { color:#333333 }） */
+.level_wrap.bg_set .word_label { color: #333333; }
+
+/* 内容层提到背景之上
+   注意：底部 .level_footer 本身是 position:fixed; z-index:1000，已高于背景层，
+   不可在此改写它的 position，否则会破坏固定定位。 */
+/* header 必须高于 main（100 > 1），否则顶栏下拉面板会被正文层盖住无法点击 */
+.level_wrap > .level_header { position: relative; z-index: 100; }
+.level_wrap > .level_main { position: relative; z-index: 1; }
+
+/* ---------------- 顶栏（原站 .level_header / .level_nav） ---------------- */
+.level_header {
+  height: 40px;
+  padding: 0;
+  width: 100%;
+  transition: all .3s cubic-bezier(.25, .8, .25, 1);
+  background: linear-gradient(to bottom, #F9F9F9, #ffffff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .1);
+  flex: 0 0 auto;
+  z-index: 100;
+}
+/* 原站 .level_header .level_nav { border-bottom:none!important; max-height:38px;
+     position:relative; z-index:119; margin-top:1px; background:none } */
+.level_header .level_nav {
+  border-bottom: none !important;
+  max-height: 38px;
+  position: relative;
+  z-index: 119;
+  margin-top: 1px;
+  background: none;
+}
+.level_nav nav {
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+}
+.level_nav nav * { user-select: none; }
+.level_nav nav ul { list-style: none; padding: 0; margin: 0; }
+.level_nav nav .more { display: flex; }
+/* 原站 h1：font-size:14px; line-height:26px; padding-left:20px; color:#0C0C0C;
+   font-weight:normal; max-width:500px; white-space:nowrap; overflow:hidden */
+.level_nav nav h1 {
+  text-align: left; flex: 1 1 auto; min-width: 0;
+  font-size: 14px; line-height: 26px;
+  padding-left: 20px; color: #0C0C0C; font-weight: normal;
+  max-width: 500px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+
+/* 原站 .level_nav .score_bar：font-size:12px; margin-right:10px; max-width:500px */
+.level_nav .score_bar {
+  font-size: 12px; margin-right: 10px; user-select: none;
+  max-width: 500px; overflow: hidden; white-space: nowrap;
+}
+.level_nav .score_bar span { color: #666; }
+.level_nav .score_bar span[id] { color: #fa7407; margin-right: 10px; }
+
+.level_nav nav ul.tools { display: flex; flex-direction: row; }
+/* 原站 .level_nav nav ul li { display:block; margin-left:20px } */
+.level_nav nav ul.tools li { position: relative; display: block; margin-left: 20px; }
+.level_nav nav .more li { position: relative; display: block; margin-left: 20px; }
+/* 原站 li span/a：color:#666; padding:5px 10px; border-radius:5px; font-size:12px
+   [差异] 不套 text-indent:-6999px（那是 iconfont 隐藏文字用的，本项目用文字字符当图标） */
+.level_nav nav li > span {
+  color: #666; padding: 5px 10px; border-radius: 5px;
+  transition: background-color .3s, color .3s;
+  cursor: pointer; display: inline-block; font-size: 12px; line-height: 1;
+}
+.level_nav nav ul li > span:hover { background-color: #888; color: #fff; }
+
+/* 工具面板（原站 .tools .options） */
+.tools .options {
+  position: absolute; top: 50px; right: 0;
+  width: 300px;
+  background: #ffffff;
+  text-align: left;
+  line-height: 35px;
+  box-shadow: 0 -2px 5px rgba(0, 0, 0, .2);
+  z-index: 7999;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.tools .options > div { border-bottom: 1px solid #CCCCCC; position: relative; padding: 2px 0; white-space: nowrap; }
+.tools .options > div:last-child { border-bottom: none; }
+.tools .options .options_close { position: absolute; top: 1px; right: 5px; z-index: 999; }
+.tools .options label { margin-right: 8px; cursor: pointer; white-space: nowrap; }
+.tools .options input[type="radio"] { vertical-align: middle; }
+.tools .options input[type="range"] { width: 130px; vertical-align: middle; }
+.tools .options select { font-size: 12px; }
+
+/* ---------------- 背景主题选择器（照搬原站 ul.bg-themes） ---------------- */
+/* 原站 li：width:150px; border-radius:10px; margin:10px; border:3px solid #ddd; overflow:hidden
+   img{width:150px} i{font-size:12px; margin-top:-50px; color:#666666} */
+.tools ul.bg-themes {
+  display: flex; flex-direction: row; flex-wrap: wrap;
+  align-items: center; margin-top: 4px; padding: 0;
+}
+.tools ul.bg-themes li {
+  list-style: none; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; cursor: pointer;
+  width: 150px; height: auto; border-radius: 10px; margin: 10px;
+  border: 3px solid #ddd; overflow: hidden; background: #fff;
+}
+.tools ul.bg-themes li img { width: 150px; height: auto; display: block; }
+.tools ul.bg-themes li i {
+  font-style: normal; font-size: 12px; color: #666666;
+  margin-top: -50px; width: 100%; text-align: center;
+}
+.tools ul.bg-themes li:hover { border-color: #b7dbff; }
+.tools ul.bg-themes li.active { border-color: #5DB7E5; }
+.bg-pick-tip { font-size: 12px; color: #888; padding: 2px 0 0 8px; }
+
+/* ---------------- 正文 ---------------- */
+.level_main {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: auto;     /* 窗口变窄时宁可横向滚动，也不要让一行字被裁掉 */
+  padding-bottom: 96px;
+  width: 100%;
+}
+.level_pages { width: 100%; }
+/* 原站 .level_page { display:flex; justify-content:center; align-items:center; margin-bottom:20px } */
+.level_page { display: flex; justify-content: center; align-items: center; margin-bottom: 20px; }
+.level_pages .level_page { width: 100%; }
+/* 原站 .level_para_lines { width:98%; margin:10px auto; display:flex; flex-direction:column } */
+.level_para_lines {
+  width: 98%;
+  margin: 10px auto;
+  display: flex;
+  flex-direction: column;
+}
+/* 原站 .level_para_line { display:block; width:auto; min-width:900px; background:#ffffff;
+     border-radius:4px; box-shadow: inset 0 0 4px rgb(84,53,7,0.2);
+     padding:3px; padding-bottom:0; margin:auto auto; margin-bottom:10px }
+   原站 max-width 随断点变化（见 level.css）：<768→600px、≥768→760、≥1024→960、≥1280→1200。
+   **min-width:900px 恒压过 max-width**，所以桌面端任何窗口宽度下行宽都是 900px、
+   30px 字号下每行字数恒为 27 —— 这正是「一行的文字数」与原站一致的关键，勿再放开。
+   窗口窄于 900px 时由 .level_main 横向滚动，与原站表现相同。 */
+.level_para_line {
+  display: block;
+  width: auto;
+  min-width: 900px;
+  max-width: 600px;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: inset 0 0 4px rgba(84, 53, 7, .2);
+  padding: 3px;
+  padding-bottom: 0;
+  margin: auto auto;
+  margin-bottom: 10px;
+  transition: none;
+}
+@media (min-width: 768px)  { .level_para_line { max-width: 760px; } }
+@media (min-width: 1024px) { .level_para_line { max-width: 960px; } }
+@media (min-width: 1280px) { .level_para_line { max-width: 1200px; } }
+.level_para_line .words_box {
+  display: block; user-select: none;
+  /* nowrap：一行内的格子绝不折行，否则会与输入框的单行排版错位（1:1 网格必须保住） */
+  white-space: nowrap;
+  padding-left: 1px;      /* 抵消 input 左侧 1px 边框，让上下两行首字严格同列 */
+}
+.level_para_line .words_box .word_box {
+  display: inline-block;
+  padding: 0 !important; margin: 0 !important;
+  box-sizing: content-box;
+  position: relative;
+}
+/* 原站 word_label：padding:0!important; margin:0!important; box-sizing:content-box;
+   font-size:30px; font-family:Consolas,Courier New,SF Mono,PingFang SC,...; min-width:3px; text-align:center
+   [差异] 宽度由 JS 写入 .word_box，保证与输入框内同字等宽 */
+.level_para_line .words_box .word_label {
+  padding: 0 !important; margin: 0 !important;
+  box-sizing: content-box;
+  font-size: var(--hz-size);
+  line-height: normal;
+  font-family: Consolas, 'Courier New', 'SF Mono', 'PingFang SC', 'Hiragino Sans GB',
+               'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
+  letter-spacing: 0;
+  min-width: 3px;
+  color: #333333;
+  display: block;
+  text-align: center;
+}
+/* 原站 .word_cursor { height:2px; background-color:#a5e2f6; width:96%; opacity:.5; margin-top:0; display:none }
+   .level_para_line .word_cursor { display:block; opacity:0 }
+   .level_para_line .on .word_cursor { opacity:.3; background-color:#205b02 } */
+.level_para_line .word_cursor {
+  display: block;
+  height: 2px;
+  width: 96%;
+  background-color: #a5e2f6;
+  opacity: 0;
+  margin-top: 0;
+}
+/* on 类加在卡片自身（.level_para_line.level_line.on），故用复合选择器；
+   同时保留原站的后代写法，两种结构都能命中 */
+.level_para_line.on .word_cursor,
+.level_para_line .on .word_cursor { opacity: .3; background-color: #205b02; }
+/* 状态色：**打对 = 黑色（与正文同色 #333333，不再变蓝）** / 打错 = #ff5e7c 粉红。
+   ⚠ 实测备忘：原站「打对」其实是 #0086d2 蓝 —— 两处 level.css
+   （v.mamioo.com 与 nezhadazi.com 站点级）都写着 `.level_para_line .correct .word_label{color:#0086d2}`，
+   且在原站页面上走它自己的判定逻辑实测也是 rgb(0,134,210)。
+   此处按用户明确要求改成黑色；**要回退成原站蓝色，只把下一行的 #333333 换回 #0086d2 即可**。
+   注意：原站只改文字色，下划线不跟着变 —— 当前行整行一律 #205b02@.3。 */
+.level_para_line .correct .word_label { color: #333333; }
+.level_para_line .incorrect .word_label { color: #ff5e7c; }
+/* 深色主题下「打对」必须与正文同为浅色，否则 #333 落在 #000 底上会糊得看不见 */
+.level_dark .level_para_line .correct .word_label { color: #eee; }
+
+/* 原站 .level_para_line .input_box { display:block; width:100%!important; height:50px;
+     border:1px solid #ffffff; font-size:30px; letter-spacing:0px;
+     margin-bottom:5px; border-top-color:#ddeedd } */
+.level_para_line .input_box {
+  display: block;
+  width: 100% !important;
+  height: 50px;
+  border: 1px solid #ffffff;
+  border-top-color: #ddeedd;
+  background: transparent;
+  font-size: var(--hz-size);
+  font-family: Consolas, 'Courier New', 'SF Mono', 'PingFang SC', 'Hiragino Sans GB',
+               'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
+  letter-spacing: 0;
+  margin-bottom: 5px;
+  padding: 0;
+  outline: none;
+  color: #333;
+  box-sizing: border-box;
+}
+.level_para_line .input_box:focus { border-top-color: #205b02; }
+.level_para_line .input_box:disabled { color: #999; }
+.level_para_line:not(.on) .input_box:disabled { color: #c4c4c4; }
+
+/* ---------------- 深色（照搬原站 .level_dark 系列） ----------------
+   原站：.level_dark.level_body{background:#000!important}
+        .level_dark .level_header{background:#666666}
+        .level_dark .level_nav nav *{color:#eee}
+        .level_dark .word_label{color:#eee}
+        .level_dark .level_line{background:#666;color:#eee}
+        .level_dark .level_para_line .input_box{color:#eee;background:#333;border:1px solid #ddd}
+        .level_dark .level_box::before{opacity:.2!important} */
+.level_dark.level_wrap { background: #000 !important; }
+.level_dark.level_wrap.bg_set::before { opacity: .2; }
+.level_dark .level_header { background: #666666; }
+.level_dark .level_nav nav * { color: #eee; }
+.level_dark .level_nav nav h1 { color: #eee; }
+.level_dark .level_line { background: #666; color: #eee; }
+.level_dark .word_label { color: #eee; }
+.level_wrap.bg_set.level_dark .word_label { color: #eee; }
+.level_dark .level_para_line .input_box { color: #eee; background: #333; border: 1px solid #ddd; }
+.level_dark .level_para_line .input_box:disabled { color: #bbb; }
+.level_dark .level_para_line:not(.on) .input_box:disabled { color: #999; }
+
+/* ---------------- 拼音提示浮标（原站 .notify_para） ---------------- */
+.notify_para {
+  position: absolute;
+  background-color: #205b02;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 6999;
+  overflow: hidden;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: left .12s ease, top .12s ease;
+}
+.notify_para span {
+  background: rgba(255, 255, 255, .3);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, .2);
+  border: 1px solid rgba(255, 255, 255, .5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 16px;
+  padding: 1px 8px;
+  color: #ffffff;
+  font-family: Consolas, 'Courier New', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+/* 提示（Ctrl+Alt）气泡 */
+.answer_tip {
+  position: fixed; left: 50%; bottom: 110px; transform: translateX(-50%);
+  background: rgba(32, 91, 2, .94); color: #fff; padding: 8px 16px;
+  border-radius: 20px; font-size: 14px; z-index: 9000;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+  transition: opacity .5s;
+}
+.answer_tip.out { opacity: 0; }
+
+/* ---------------- 底部进度 / 快捷键 ---------------- */
+.level_footer_wrap { flex: 0 0 auto; }
+.level_process {
+  position: fixed; left: 0; right: 0; bottom: 0; height: 60px;
+  background: #FFF; border-top: 1px solid #e0e0e0;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, .08);
+  z-index: 1000; display: flex; justify-content: center; align-items: center;
+}
+.level_process_content {
+  width: min(800px, 90%); display: flex; justify-content: center;
+  align-items: center; position: relative; gap: 15px;
+}
+/* 原站 btn：font-size:16px; hover 带 translateY(-2px) 与蓝色阴影 */
+.level_process_content .btn {
+  background-color: #fff; color: #666; padding: 6px 25px; border-radius: 28px;
+  cursor: pointer; font-size: 16px; font-weight: 500; transition: all .3s ease;
+  border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0, 0, 0, .05);
+  min-width: 100px; text-align: center;
+}
+.level_process_content .btn:hover {
+  background-color: #33AFFF; color: #fff; border-color: #33AFFF;
+  transform: translateY(-2px); box-shadow: 0 4px 8px rgba(51, 175, 255, .2);
+}
+.level_process_content .btn:disabled { background-color: #f5f5f5; cursor: not-allowed; color: #ccc; border-color: #eee; }
+/* 原站 .level_process_content .btn.active {background:#33AFFF;color:#fff;border-color:#33AFFF}
+   —— 原站单页关卡时「下一关」恒带 active（蓝底），「上一关」不带 */
+.level_process_content .btn.active { background-color: #33AFFF; color: #fff; border-color: #33AFFF; }
+.level_process_content .btn.active:hover { background-color: #2b8fd1; border-color: #2b8fd1; }
+.level_process_content .pass_bar {
+  font-size: 12px; text-align: center; position: absolute; top: 50%; left: 10px;
+  transform: translateY(-50%); width: 100%; color: #aaa; pointer-events: none;
+}
+.level_process_content progress {
+  flex: 1; height: 8px; margin: 0 10px;
+  -webkit-appearance: none; appearance: none; border-radius: 4px; overflow: hidden;
+  border: 0; background: #f0f0f0;
+}
+.level_process_content progress::-webkit-progress-bar { background-color: #f0f0f0; border-radius: 4px; }
+.level_process_content progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #33AFFF, #2b8fd1); border-radius: 4px; transition: width .5s ease;
+}
+.level_process_content progress::-moz-progress-bar { background: linear-gradient(90deg, #33AFFF, #2b8fd1); }
+/* 原站 .level_keyinfo { bottom:35px; opacity:0 }
+   [差异] 这里常显并上移到进度条之上，快捷键提示对单机练习是有用信息 */
+.level_keyinfo {
+  position: fixed; left: 0; right: 0; bottom: 62px; height: 20px; z-index: 1002;
+  display: flex; justify-content: center; align-items: center; color: #555; opacity: 1;
+}
+.level_keyinfo span {
+  background: #EEEEEE; border-radius: 4px; padding: 0 5px; margin: 0 5px; font-size: 11px;
+}
