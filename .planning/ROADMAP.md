@@ -55,23 +55,23 @@
 | 逐格对齐 | 三条件缺一不可 | F14 + 产品底线 §5 |
 | 删除交互 | 按钮两步式 + 撤销 | F18 |
 | 打字页对照口径 | 标题/0CPM/上一关下一关/字号档 16~90 默认 3/行宽 900/每行 27 字 | F19 |
-| **一行的字数 = 字号档位** | 行宽两边都锁 900px，字数只随字号变 → 别再动折行算法 | F19.1 |
+| **per 恒为 27** | 原站测量探针恒 30px；**别再让它跟字号走**（否则档1 会变 53 字/行） | F22 |
+| 朗读键 | 用户要求 = **右 Ctrl**（原站是空格）；空格已是普通输入键 | F22.5 |
+| 中文标点 | `Util.toChinesePunct()` 幂等，渲染前统一过一遍 | F22.5 |
 | 打对字色 | **用户要求黑 #333**（原站实为 #0086d2 蓝，回退改一行） | F20.1 |
 | 清空练习进度 | **已按用户要求移除**，勿再加回 | F20.2 |
 
 ## 6. Next（唯一起点）
 
-**暂无待办** —— 第 11 轮（发布到 GitHub）已完成。
+**暂无待办** —— 第 12 轮（朗读键 / 中文标点 / 每行字数）已完成，41 项回归全绿。
 
-- 📦 仓库：**https://github.com/SheYOYO/typing-practice**（public）
-  本地已 `git init` + 13 个分层提交；HEAD 与远端 `main` SHA 一致。
-- 🚀 **推送永远走** `python .planning/tools/push_to_github.py`（`--check` 只核验）。
-  ⚠ 本机 `github.com` 解析到不可达 IP，**直接 `git push` 必失败**；
-  该脚本会自动起本地中转绕过（详见 `findings.md` F21）。
+- 📦 仓库 **https://github.com/SheYOYO/typing-practice**（public）。
+  本地已 `git init` + 分层提交；推送**永远走** `python .planning/tools/push_to_github.py`
+  （`--check` 只核验）。⚠ 本机 `github.com` 解析到不可达 IP，直接 `git push` 必失败，见 F21。
 - ⚠ **打对字色是「用户要求」而非原站值**：原站实测 #0086d2 蓝（见 F20.1 四条证据）。
   若之后又要「照搬原站」，把 `css/level.css` 里 `.correct .word_label` 的 `#333333` 换回 `#0086d2`。
 - 原站取证物在 `.planning/reference/`（**不入库**）；复现脚本在 `.planning/tools/`
-  （`regression.cjs` / `e2e_finish.cjs` 需先在根目录起 8899 静态服务）。
+  （`regression.cjs` / `e2e_finish.cjs` / `compare_breaks.cjs` 需先在根目录起 8899 静态服务）。
 - **已知仍未对齐、等用户发话**（详见 F19.5）：快捷键条原站默认隐藏、启动遮罩
   「鼠标点我 或 按 空格键 开始」、结算页速度/时长单位。
 - 新需求先查 `ROADMAP.archive.md` / CHANGELOG 是否已做过。

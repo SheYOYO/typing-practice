@@ -70,8 +70,8 @@ async function enterPractice(page) {
   ok('统计条含 0CPM（原站初始单位）', /速度： 0CPM/.test(facts.bar), facts.bar);
   ok('统计条时间初始 00:00:00', /时间： 00:00:00/.test(facts.bar), facts.bar);
   ok('底栏按钮 = 上一关 / 下一关', facts.btns.join('/') === '上一关/下一关', facts.btns.join('/'));
-  ok('快捷键条 = 空格 朗读 / ←→ 翻页 / Ctrl + Alt 提示',
-     facts.keyinfo === '空格 朗读 ←→ 翻页 Ctrl + Alt 提示', facts.keyinfo);
+  ok('快捷键条 = 右Ctrl 朗读 / ←→ 翻页 / Ctrl + Alt 提示',
+     facts.keyinfo === '右Ctrl 朗读 ←→ 翻页 Ctrl + Alt 提示', facts.keyinfo);
   ok('汉字字号 30px（原站默认档 3）', facts.fs === '30px', facts.fs);
   ok('行卡片宽 900px / 内容 894px（原站实测值）', facts.lineW === 900 && facts.boxW === 894, facts.lineW + '/' + facts.boxW);
   ok('每行最多 27 字（与原站逐行一致）', facts.maxN === 27 && facts.lines === 22, facts.maxN + '字/' + facts.lines + '行');
@@ -221,6 +221,91 @@ async function enterPractice(page) {
   ok('左侧未被裁切（line.left ≥ 0）', narrow.left >= 0, 'left=' + narrow.left);
   ok('可横向滚动', narrow.scrollable, String(narrow.scrollable));
   await page.setViewportSize({ width: 1440, height: 900 });
+
+  console.log('\n=== 7b. 每行字数与原站一致：per 恒为 27，不随字号变 ===');
+  const perAt = async n => page.evaluate(async v => {
+    const r = document.querySelector('input[name="fontSize"]');
+    r.value = String(v); r.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(x => setTimeout(x, 400));
+    const ls = [...document.querySelectorAll('#level_para_lines .level_para_line')].filter(x => x.querySelector('.word_box'));
+    return { per: window.Engine.per, lines: ls.length,
+             maxN: Math.max(...ls.map(x => x.querySelectorAll('.word_box').length)) };
+  }, n);
+  const perTable = [];
+  for (const n of [1, 3, 5, 9]) {
+    const s = await perAt(n);
+    perTable.push(`档${n}:per=${s.per}/${s.lines}行`);
+    ok(`档${n}：per=27 且仍是 22 行 27 字上限（原站实测值）`,
+       s.per === 27 && s.lines === 22 && s.maxN === 27, JSON.stringify(s));
+  }
+  await page.evaluate(async () => {
+    const r = document.querySelector('input[name="fontSize"]');
+    r.value = '3'; r.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(x => setTimeout(x, 300));
+  });
+
+  console.log('\n=== 7c. 朗读键：右 Ctrl 触发，空格不再触发，Ctrl+Alt 不误触 ===');
+  const keyTest = await page.evaluate(async () => {
+    const sleep = ms => new Promise(x => setTimeout(x, ms));
+    const calls = [];
+    // 注意：window.speechSynthesis 是只读访问器，整体替换不生效 → 只覆盖它的 speak 方法
+    const syn = window.speechSynthesis;
+    const origSpeak = syn ? syn.speak : null;
+    if (syn) {
+      syn.speak = function (u) { calls.push(u && u.text); };
+      if (typeof syn.cancel === 'function') {
+        const oc = syn.cancel.bind(syn);
+        syn.cancel = function () { oc(); };
+      }
+    }
+    const fire = (type, code, extra) => document.dispatchEvent(new KeyboardEvent(type,
+      Object.assign({ code, key: code, bubbles: true, cancelable: true }, extra || {})));
+    // ① 单纯按一下右 Ctrl
+    fire('keydown', 'ControlRight'); fire('keyup', 'ControlRight'); await sleep(80);
+    const afterCtrl = calls.length;
+    // ② 空格
+    fire('keydown', 'Space', { key: ' ' }); fire('keyup', 'Space', { key: ' ' }); await sleep(80);
+    const afterSpace = calls.length;
+    // ③ Ctrl + Alt（提示）——不能顺带触发朗读
+    fire('keydown', 'ControlRight');
+    fire('keydown', 'AltLeft', { altKey: true });
+    fire('keydown', 'KeyH', { key: 'h', ctrlKey: true, altKey: true });
+    fire('keyup', 'KeyH', { key: 'h', ctrlKey: true, altKey: true });
+    fire('keyup', 'AltLeft');
+    fire('keyup', 'ControlRight');
+    await sleep(100);
+    const afterCombo = calls.length;
+    if (syn && origSpeak) syn.speak = origSpeak;
+    return {
+      ctrl: afterCtrl, spaceDelta: afterSpace - afterCtrl, comboDelta: afterCombo - afterSpace,
+      spoken: calls.slice(0, 1)
+    };
+  });
+  ok('右 Ctrl 按下再抬起 → 朗读一次', keyTest.ctrl === 1,
+     '实际 ' + keyTest.ctrl + ' 次' + (keyTest.spoken[0] ? ' 文本:' + keyTest.spoken[0].slice(0, 10) : ''));
+  ok('空格不再触发朗读', keyTest.spaceDelta === 0, '多了 ' + keyTest.spaceDelta + ' 次');
+  ok('Ctrl + Alt 提示 不会误触发朗读', keyTest.comboDelta === 0, '多了 ' + keyTest.comboDelta + ' 次');
+
+  console.log('\n=== 7d. 文章标点统一为中文标点 ===');
+  const punct = await page.evaluate(async () => {
+    const sleep = ms => new Promise(x => setTimeout(x, ms));
+    const ASCII = '第一句话, 第二句话. 他说"你好"! 这是(括号)和[方括号].';
+    localStorage.setItem('nzd_articles_v1', JSON.stringify([
+      { id: 'punct_test', title: '《标点》', author: '测试', source: '散文一百篇', builtin: false, text: ASCII }
+    ]));
+    const j = window.Util.toChinesePunct(ASCII);
+    return { in: ASCII, out: j, idempotent: window.Util.toChinesePunct(j) === j };
+  });
+  ok('函数：半角 → 中文标点', /，/.test(punct.out) && /。/.test(punct.out) &&
+     /！/.test(punct.out) && /（/.test(punct.out) && /【/.test(punct.out) && !/[,!]/.test(punct.out),
+     punct.out);
+  ok('函数：幂等（再来一遍不变）', punct.idempotent);
+  await page.goto(BASE + '#/p/punct_test', { waitUntil: 'load' });
+  await page.waitForSelector('#level_para_lines .level_para_line', { timeout: 15000 });
+  await page.waitForTimeout(600);
+  const rendered = await page.evaluate(() =>
+    document.querySelector('#level_para_lines').innerText.replace(/\s+/g, ''));
+  ok('渲染页里的标点已是中文标点', /，/.test(rendered) && /。/.test(rendered) && !/,/.test(rendered), rendered);
 
   console.log('\n=== 8. 结算页 ===');
   await enterPractice(page);

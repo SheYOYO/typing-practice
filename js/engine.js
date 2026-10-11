@@ -109,7 +109,9 @@
     this.onPrev = opts.onPrev || null;
     this.onNext = opts.onNext || null;
 
-    this.lines = global.Pinyin.splitLines(article.text || '');
+    // 文章里的标点统一成中文标点（幂等：中文标点不会被二次改动）。
+    // 放在这里是为了覆盖所有来源：内置文章、导入文章、以及历史上已存在本机的文章。
+    this.lines = global.Pinyin.splitLines(global.Util.toChinesePunct(article.text || ''));
     this.records = [];
     this.lineIdx = 0;
     this.started = false;
@@ -444,10 +446,11 @@
       '</div>';
     f.appendChild(proc);
 
-    // 原站快捷键条原文（不含「Esc 返回」—— 那是本项目自加的，已按原站移除）
+    // 快捷键条：原站第一条是「空格 朗读」，本项目按用户要求把朗读键改成了**右 Ctrl**，
+    // 故这一条同步改成「右Ctrl 朗读」（其余两条与原站一致）
     var ki = el('div', 'level_keyinfo');
     ki.innerHTML =
-      '<span class="read">空格 朗读</span>' +
+      '<span class="read">右Ctrl 朗读</span>' +
       '<span class="read">←→ 翻页</span>' +
       '<span class="write">Ctrl + Alt 提示</span>';
     f.appendChild(ki);
@@ -531,7 +534,16 @@
   /* 每行放几个字 —— 原样照搬原站 getMaxCharsByFilling(inputId, lang)
      原站做法：往一个 .input_box 里塞 500 个「中」，二分找出
      scrollWidth <= clientWidth 的最大字符数，再 -2，最小 10。
-     （不是按像素除法估的，是真实的「输入框装得下几个字」） */
+     （不是按像素除法估的，是真实的「输入框装得下几个字」）
+
+     ★★ 关键（2026-10-11 实测）：原站 `.level_para_line .input_box{font-size:30px}` 是**写死的**，
+        `.font_label_sizeN` 只改 `.word_label` 的字号。也就是说原站那个「装得下几个字」的探针
+        永远是 30px → getMaxCharsByFilling 恒为 29 → **per 恒为 27，跟「中文大小」档位完全无关**
+        （实测：档 1=16px / 档 3=30px / 档 9=90px，原站 per 都是 27）。
+        所以这里也必须把探针钉死在 30px。若跟着档位走，档 1 会算出 53 字/行
+        ——「一行字数太多、标点被甩到下一行独占一行」正是这么来的。 */
+  var PER_PROBE_FONT = 30;   // 原站 input_box 的固定字号
+
   Engine.prototype.getMaxCharsByFilling = function () {
     var box = this.linesBox;
     if (!box) return 30;
@@ -541,6 +553,7 @@
     inp.type = 'text';
     inp.autocomplete = 'off';
     inp.disabled = true;
+    inp.style.fontSize = PER_PROBE_FONT + 'px';   // 与原站一致：探针恒 30px，与档位解耦
     wrap.appendChild(inp);
     wrap.style.visibility = 'hidden';   // 原站是直接 append 后清空，这里藏起来避免闪一下
     box.appendChild(wrap);
@@ -932,6 +945,9 @@
     if (global.speechSynthesis) global.speechSynthesis.cancel();
     if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler, true);
     this._keyHandler = null;
+    if (this._keyUpHandler) document.removeEventListener('keyup', this._keyUpHandler, true);
+    this._keyUpHandler = null;
+    this._rctrlDirty = null;
     if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
     this._resizeHandler = null;
     if (this.root) this.root.innerHTML = '';
@@ -939,21 +955,33 @@
   };
 
   /* ---------- [J] 全局快捷键 ---------- */
+  /* 朗读键：**右 Ctrl**（原站是空格；按用户要求改成右 Ctrl，空格因此恢复为普通输入键）。
+     为什么按下时不触发、要等抬起：右 Ctrl 与 `Ctrl + Alt 提示` 共用 Ctrl，
+     按下瞬间还看不出用户是要朗读还是要叫提示。所以：
+       · 右 Ctrl 按下 → 只记一个「本次是否被别的键打断」的标记
+       · 期间按下任何其它键（含 Alt）→ 标记为打断，抬起时不再朗读
+       · 干干净净地按下再抬起 → 朗读当前行 */
   Engine.prototype.bindKeys = function () {
     var self = this;
-    if (this._keyHandler) document.removeEventListener('keydown', this._keyHandler, true);
+    var oldDown = this._keyHandler, oldUp = this._keyUpHandler;
+    if (oldDown) document.removeEventListener('keydown', oldDown, true);
+    if (oldUp) document.removeEventListener('keyup', oldUp, true);
+
     this._keyHandler = function (e) {
       if (self.finished) return;
-      var inInput = e.target && e.target.classList && e.target.classList.contains('input_box');
+
+      /* —— 右 Ctrl 朗读 —— */
+      if (e.code === 'ControlRight') {
+        if (e.type === 'keydown') self._rctrlDirty = false;   // 开始按住
+        return;
+      }
+      if (self._rctrlDirty === false && e.type === 'keydown') {
+        self._rctrlDirty = true;    // 按住右 Ctrl 期间又按了别的键 → 不是朗读
+      }
+
       if (e.key === 'Escape') {
         if (self.started && !self.finished && !confirm('退出练习？本行进度不会保存。')) return;
         self.onExit();
-        return;
-      }
-      if (e.code === 'Space' && !e.ctrlKey && !e.altKey) {
-        // 空格 = 朗读当前行
-        e.preventDefault();
-        self.speakCurrentLine();
         return;
       }
       if (e.key === 'ArrowLeft') { e.preventDefault(); self.gotoLine(self.lineIdx - 1); return; }
@@ -964,7 +992,17 @@
         return;
       }
     };
+
+    this._keyUpHandler = function (e) {
+      if (self.finished) return;
+      if (e.code !== 'ControlRight') return;
+      var clean = (self._rctrlDirty === false);   // 期间没按过别的键才算「单纯按右 Ctrl」
+      self._rctrlDirty = null;
+      if (clean) self.speakCurrentLine();
+    };
+
     document.addEventListener('keydown', this._keyHandler, true);
+    document.addEventListener('keyup', this._keyUpHandler, true);
   };
 
   Engine.prototype.gotoLine = function (i) {

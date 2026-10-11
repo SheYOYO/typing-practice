@@ -449,6 +449,9 @@
     var author = (appEl.querySelector('#imp_author').value || '').trim();
     var text = appEl.querySelector('#imp_text').value || '';
     text = text.replace(/\r\n?/g, '\n').replace(/\n{2,}/g, '\n').trim();
+    // 导入即把标点统一成中文标点，存进去的就是干净文本
+    // （引擎渲染时还会再过一遍，两层都幂等，老数据也能自动修正）
+    text = global.Util.toChinesePunct(text);
     if (text.length < 2) { setTip('⚠ 请先粘贴正文内容'); return; }
     var n = countChars(text);
     if (n > MAX_CHARS) {
