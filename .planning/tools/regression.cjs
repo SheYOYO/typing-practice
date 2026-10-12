@@ -46,6 +46,109 @@ async function enterPractice(page) {
   ok('导入 / 删除 按钮仍在（未误伤其它功能）',
      await page.locator('#imp_file_btn').count() === 1 && await page.locator('#imp_delmode').count() === 1);
 
+  console.log('\n=== 1b. 文章编辑弹层（导入确认 / 卡片编辑） ===');
+  await page.evaluate(() => { localStorage.clear(); });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#imp_title', { timeout: 8000 });
+
+  // (a) 入口一：导入确认
+  await page.fill('#imp_title', '原标题');
+  await page.fill('#imp_text', '第一句话, 第二句话.');
+  await page.click('#imp_btn');
+  await page.waitForSelector('#editor_mask', { timeout: 5000 });
+  const pre1 = await page.evaluate(() => ({
+    t: document.querySelector('#ed_title').value,
+    x: document.querySelector('#ed_text').value,
+    btn: document.querySelector('#ed_save').textContent
+  }));
+  ok('导入时弹出「确认导入」且预填面板内容',
+     pre1.t === '原标题' && pre1.x.indexOf('第一句话') === 0 && pre1.btn === '确认导入',
+     JSON.stringify(pre1));
+  await page.fill('#ed_title', '改过的标题');
+  await page.fill('#ed_text', '改过的正文, 只有两句.');
+  await page.click('#ed_save');
+  await page.waitForTimeout(350);
+  ok('确认导入后弹层关闭', await page.locator('#editor_mask').count() === 0);
+  const afterImp = await page.evaluate(() => {
+    const arts = JSON.parse(localStorage.getItem('nzd_articles_v1') || '[]');
+    const c = document.querySelector('.a_card');
+    return { n: arts.length, title: c.querySelector('.a_name').textContent,
+             text: arts[0] && arts[0].text, hasEdit: !!c.querySelector('.a_edit') };
+  });
+  ok('新卡片用的是弹层里改过的标题', afterImp.title === '改过的标题', afterImp.title);
+  ok('入库正文标点已是中文', /，/.test(afterImp.text) && !/,/.test(afterImp.text), afterImp.text);
+  ok('导入的卡片带 ✎ 编辑按钮', afterImp.hasEdit);
+
+  // (b) 入口二：卡片编辑，且不丢练习进度
+  await page.evaluate(() => {
+    const id = JSON.parse(localStorage.getItem('nzd_articles_v1'))[0].id;
+    localStorage.setItem('nzd_progress_v1', JSON.stringify({
+      [id]: { done: true, attempts: 3, best: { speed: 88, accuracy: 99, duration: 12, stars: 4 } }
+    }));
+  });
+  await page.hover('.a_card');
+  await page.click('.a_edit');
+  await page.waitForSelector('#editor_mask', { timeout: 5000 });
+  const pre2 = await page.evaluate(() => ({
+    t: document.querySelector('#ed_title').value,
+    btn: document.querySelector('#ed_save').textContent
+  }));
+  ok('编辑弹层预填该文章内容、按钮为「保存修改」',
+     pre2.t === '改过的标题' && pre2.btn === '保存修改', JSON.stringify(pre2));
+  await page.fill('#ed_title', '再改一次');
+  await page.fill('#ed_text', '又改了一次的正文.');
+  await page.click('#ed_save');
+  await page.waitForTimeout(350);
+  const afterEd = await page.evaluate(() => {
+    const arts = JSON.parse(localStorage.getItem('nzd_articles_v1'));
+    const prog = JSON.parse(localStorage.getItem('nzd_progress_v1'));
+    const c = document.querySelector('.a_card');
+    return { text: arts[0].text, title: c.querySelector('.a_name').textContent,
+             done: c.classList.contains('is_done'), p: prog[arts[0].id],
+             n: arts.length };
+  });
+  ok('编辑后正文已更新', afterEd.text === '又改了一次的正文。', afterEd.text);
+  ok('编辑后标题已更新', afterEd.title === '再改一次', afterEd.title);
+  ok('编辑不新增文章（仍是 1 篇）', afterEd.n === 1, String(afterEd.n));
+  ok('编辑后 id 不变 → 进度与最好成绩保留',
+     afterEd.done && afterEd.p && afterEd.p.attempts === 3 && afterEd.p.best.speed === 88,
+     JSON.stringify(afterEd.p));
+
+  // (c) 内置文章不可编辑
+  const builtin = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.a_card')];
+    const b = cards[cards.length - 1];
+    return { hasEdit: !!b.querySelector('.a_edit'), hasDel: !!b.querySelector('.a_del') };
+  });
+  ok('内置文章卡片上没有 ✎ / ×', !builtin.hasEdit && !builtin.hasDel, JSON.stringify(builtin));
+
+  // (d) 超上限 / 太短：就地报错、不关弹层；Esc 关闭
+  await page.hover('.a_card');
+  await page.click('.a_edit');
+  await page.waitForSelector('#editor_mask', { timeout: 5000 });
+  await page.evaluate(() => { document.querySelector('#ed_text').value = '中'.repeat(50001); });
+  await page.click('#ed_save');
+  await page.waitForTimeout(300);
+  const over = await page.evaluate(() => ({
+    open: !!document.querySelector('#editor_mask'),
+    err: document.querySelector('#ed_err').textContent
+  }));
+  ok('超 5 万字：弹层不关且就地报错', over.open && /超出上限/.test(over.err), JSON.stringify(over));
+  await page.fill('#ed_text', '一');
+  await page.click('#ed_save');
+  await page.waitForTimeout(250);
+  const tooShort = await page.evaluate(() => ({
+    open: !!document.querySelector('#editor_mask'),
+    err: document.querySelector('#ed_err').textContent
+  }));
+  ok('正文太短：就地报错', tooShort.open && /至少 2 个字/.test(tooShort.err), JSON.stringify(tooShort));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  ok('Esc 关闭弹层', await page.locator('#editor_mask').count() === 0);
+  const unchanged = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('nzd_articles_v1'))[0].text);
+  ok('取消/Esc 后原文章未被改动', unchanged === '又改了一次的正文。', unchanged);
+
   console.log('\n=== 2. 打字页 · 文案 / 字号 / 每行字数（对齐原站） ===');
   await enterPractice(page);
   const facts = await page.evaluate(() => {

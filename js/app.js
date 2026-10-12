@@ -105,12 +105,16 @@
   /* ---------------- 主界面 ---------------- */
   function viewHome() {
     if (global.Engine) global.Engine.destroy();
+    closeEditor();           // 兜底：任何重绘前先收掉可能还开着的编辑弹层
     appEl.className = 'app_home';
     var prog = getProgress();
     var list = allArticles();
 
     var CHECK_SVG = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">' +
       '<path d="M2.5 7.4 5.6 10.4 11.5 3.9" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var EDIT_SVG = '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+      '<path d="M11.2 2.4 13.6 4.8 5.6 12.8 2.4 13.6 3.2 10.4z" stroke="#fff" stroke-width="1.5" ' +
+      'stroke-linejoin="round" stroke-linecap="round"/></svg>';
 
     var cards = list.map(function (a, i) {
       var p = prog[a.id];
@@ -122,6 +126,9 @@
         : '';
       var del = (a.builtin || deleteMode) ? ''
         : '<button class="a_del" data-del="' + esc(a.id) + '" title="删除这篇导入的文章" aria-label="删除">&times;</button>';
+      // 编辑入口：与删除键并列（内置文章不可编辑）；删除模式下隐藏，避免两个入口打架
+      var edit = (a.builtin || deleteMode) ? ''
+        : '<button class="a_edit" data-edit="' + esc(a.id) + '" title="编辑这篇导入的文章" aria-label="编辑">' + EDIT_SVG + '</button>';
       var cls = 'a_card' + (done ? ' is_done' : '') + (deleteMode ? ' is_delmode' : '') +
         (deleteMode && a.builtin ? ' is_locked' : '');
       var aria = deleteMode
@@ -143,6 +150,7 @@
         bestLine +
         (done ? '  <div class="a_check" title="已完成">' + CHECK_SVG + '</div>' : '') +
         '  <div class="a_no" title="第 ' + (i + 1) + ' 篇">' + (i + 1) + '</div>' +
+        edit +
         del +
         '</li>';
     }).join('');
@@ -171,7 +179,8 @@
       '      <span class="imp_tip" id="imp_tip"></span>' +
       '    </div>' +
       '    <input type="file" id="imp_file" accept=".txt,.text,.md,.markdown,.docx" hidden>' +
-      '    <p class="imp_hint">支持 .txt / .md / .docx；导入后会自动抓取标题与作者填入上方，可再编辑确认。</p>' +
+      '    <p class="imp_hint">支持 .txt / .md / .docx；导入后会自动抓取标题与作者填入上方。' +
+           '点「导入并加入列表」会先弹出<strong>确认框</strong>，那一步仍可修改内容；入库后也能用卡片上的 ✎ 再编辑。</p>' +
       '  </section>' +
       '  <section class="panel list_panel">' +
       '    <div class="list_head"><h2>选择要练习的文章</h2>' +
@@ -245,25 +254,36 @@
     });
     appEl.querySelector('.article_list').addEventListener('click', function (e) {
       var t = e.target;
-      if (t.dataset && t.dataset.go) {
+      // 一律用 closest 解析，而不是直接读 e.target.dataset：
+      // 按钮里可能有 <svg> 子元素（如 ✎ 图标），e.target 会是 svg 而不是 button
+      var goBtn = t.closest && t.closest('[data-go]');
+      if (goBtn) {
         if (deleteMode) return;          // 删除模式下不进练习
-        location.hash = '#/p/' + encodeURIComponent(t.dataset.go);
+        location.hash = '#/p/' + encodeURIComponent(goBtn.getAttribute('data-go'));
         return;
       }
-      if (t.dataset && t.dataset.del) {
-        deleteArticles([t.dataset.del]);   // 可在提示里「撤销」
+      var delBtn = t.closest && t.closest('[data-del]');
+      if (delBtn) {
+        deleteArticles([delBtn.getAttribute('data-del')]);   // 可在提示里「撤销」
+        return;
+      }
+      var editBtn = t.closest && t.closest('[data-edit]');
+      if (editBtn) {
+        openEditor('edit', findArticle(editBtn.getAttribute('data-edit')));
         return;
       }
       var card = t.closest && t.closest('.a_card');
-      if (!card || t.tagName === 'BUTTON') return;
+      if (!card || (t.closest && t.closest('button'))) return;
       if (deleteMode) removeArticle(card.dataset.id); else enterArticle(card.dataset.id);
     });
     window.scrollTo(0, 0);
   }
 
-  /* Esc 退出删除模式（只在主界面生效） */
+  /* Esc：弹层优先关闭；否则退出删除模式（只在主界面生效） */
   function escDeleteMode(e) {
-    if (e.key !== 'Escape' || !deleteMode) return;
+    if (e.key !== 'Escape') return;
+    if (editorEl) { closeEditor(); return; }   // 编辑弹层打开时，Esc 只关弹层
+    if (!deleteMode) return;
     if (!appEl || appEl.className !== 'app_home') return;
     deleteMode = false;
     viewHome();
@@ -444,32 +464,156 @@
       .trim().slice(0, 20);
   }
 
+  /* 点「导入并加入列表」：先做一次轻量预检，再打开「确认导入」弹层。
+     真正入库发生在弹层的「确认导入」上 —— 那是入库前最后一次校对/编辑的机会。 */
   function doImport() {
-    var title = (appEl.querySelector('#imp_title').value || '').trim();
-    var author = (appEl.querySelector('#imp_author').value || '').trim();
     var text = appEl.querySelector('#imp_text').value || '';
     text = text.replace(/\r\n?/g, '\n').replace(/\n{2,}/g, '\n').trim();
-    // 导入即把标点统一成中文标点，存进去的就是干净文本
-    // （引擎渲染时还会再过一遍，两层都幂等，老数据也能自动修正）
-    text = global.Util.toChinesePunct(text);
-    if (text.length < 2) { setTip('⚠ 请先粘贴正文内容'); return; }
-    var n = countChars(text);
+    if (text.replace(/\s/g, '').length < 2) { setTip('⚠ 请先粘贴正文内容'); return; }
+    var n = countChars(global.Util.toChinesePunct(text));
     if (n > MAX_CHARS) {
       setTip('⚠ 共 ' + n + ' 字，超出上限 ' + MAX_CHARS + ' 字，请拆分后再导入');
       return;
     }
-    var id = 'u_' + Date.now().toString(36);
+    setTip('');
+    openEditor('import', null);
+  }
+
+  /* ---------------- 文章编辑弹层（导入确认 / 列表内编辑 共用一套） ----------------
+     mode='import'：预填导入面板里刚粘贴的内容，确认后才入库
+     mode='edit'  ：预填已有文章的内容，保存后原地更新（id 不变 → 进度与最好成绩都保留） */
+  var editorEl = null, editorMode = null, editorId = null;
+
+  function openEditor(mode, art) {
+    closeEditor();
+    editorMode = mode;
+    editorId = (mode === 'edit' && art) ? art.id : null;
+    var isEdit = (mode === 'edit');
+    var q = function (sel) { return appEl.querySelector(sel); };
+
+    var title = isEdit ? (art.title || '') : ((q('#imp_title') || {}).value || '');
+    var author = isEdit ? (art.author || '') : ((q('#imp_author') || {}).value || '');
+    var text = isEdit ? (art.text || '') : ((q('#imp_text') || {}).value || '');
+
+    var mask = el('div', 'editor_mask');
+    mask.id = 'editor_mask';
+    mask.innerHTML =
+      '<div class="editor_box" role="dialog" aria-modal="true" aria-label="' +
+        (isEdit ? '编辑文章' : '确认导入') + '">' +
+      '  <div class="editor_head">' +
+      '    <h3>' + (isEdit ? '编辑文章' : '确认导入') + '</h3>' +
+      '    <button class="editor_close" id="ed_close" title="关闭（Esc）" aria-label="关闭">&times;</button>' +
+      '  </div>' +
+      '  <div class="editor_body">' +
+      '    <div class="editor_row">' +
+      '      <input id="ed_title" placeholder="标题（可留空）" maxlength="40">' +
+      '      <input id="ed_author" placeholder="作者（可留空）" maxlength="20">' +
+      '    </div>' +
+      '    <textarea id="ed_text" class="editor_text" spellcheck="false"' +
+      '      placeholder="文章正文，用换行分段……"></textarea>' +
+      '    <div class="editor_meta">' +
+      '      <span class="imp_count" id="ed_count">0 字</span>' +
+      '      <span class="editor_hint">' +
+             (isEdit ? '保存后练习进度与最好成绩都会保留' : '入库前最后一次校对的机会')
+           + '</span>' +
+      '    </div>' +
+      '    <div class="editor_err" id="ed_err"></div>' +
+      '  </div>' +
+      '  <div class="editor_foot">' +
+      '    <button class="btn" id="ed_cancel">取消</button>' +
+      '    <button class="btn btn-primary" id="ed_save">' + (isEdit ? '保存修改' : '确认导入') + '</button>' +
+      '  </div>' +
+      '</div>';
+    document.body.appendChild(mask);
+    editorEl = mask;
+
+    mask.querySelector('#ed_title').value = title || '';
+    mask.querySelector('#ed_author').value = author || '';
+    var ta = mask.querySelector('#ed_text');
+    ta.value = text || '';
+    updateEditorCount();
+
+    ta.addEventListener('input', updateEditorCount);
+    mask.querySelector('#ed_close').addEventListener('click', closeEditor);
+    mask.querySelector('#ed_cancel').addEventListener('click', closeEditor);
+    mask.querySelector('#ed_save').addEventListener('click', saveEditor);
+
+    setTimeout(function () {
+      ta.focus();
+      try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (e) {}
+    }, 30);
+  }
+
+  function closeEditor() {
+    if (editorEl && editorEl.parentNode) editorEl.parentNode.removeChild(editorEl);
+    editorEl = null;
+    editorMode = null;
+    editorId = null;
+  }
+
+  function updateEditorCount() {
+    if (!editorEl) return;
+    var ta = editorEl.querySelector('#ed_text');
+    var n = countChars(global.Util.toChinesePunct(ta.value || ''));
+    var c = editorEl.querySelector('#ed_count');
+    c.textContent = n + ' 字' + (n > WARN_CHARS ? '（长文）' : '');
+    c.className = 'imp_count' + (n > MAX_CHARS ? ' over' : (n > WARN_CHARS ? ' warn' : ''));
+  }
+
+  function saveEditor() {
+    if (!editorEl) return;
+    var errEl = editorEl.querySelector('#ed_err');
+    var titleEl = editorEl.querySelector('#ed_title');
+    var authorEl = editorEl.querySelector('#ed_author');
+    var ta = editorEl.querySelector('#ed_text');
+
+    var title = (titleEl.value || '').trim().slice(0, 40);
+    var author = (authorEl.value || '').trim().slice(0, 20);
+    var text = (ta.value || '').replace(/\r\n?/g, '\n').replace(/\n{2,}/g, '\n').trim();
+    text = global.Util.toChinesePunct(text);   // 与导入同一套规则（幂等）
+
+    if (text.replace(/\s/g, '').length < 2) {
+      errEl.textContent = '⚠ 正文至少 2 个字';
+      ta.focus();
+      return;
+    }
+    var n = countChars(text);
+    if (n > MAX_CHARS) {
+      errEl.textContent = '⚠ 共 ' + n + ' 字，超出上限 ' + MAX_CHARS + ' 字，请拆分后再导入';
+      return;
+    }
+    errEl.textContent = '';
+
+    if (editorMode === 'edit') {
+      var cur = findArticle(editorId);
+      if (!cur || cur.builtin) { errEl.textContent = '⚠ 这篇文章不可编辑'; return; }
+      var list = getImported();
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].id !== editorId) continue;
+        list[i].title = title || list[i].title || ('我的文章 ' + new Date().toLocaleDateString());
+        list[i].author = author || list[i].author || '佚名';
+        list[i].text = text;
+        break;
+      }
+      saveImported(list);
+      closeEditor();
+      viewHome();
+      setTip('已保存「' + (title || cur.title) + '」，' + n + ' 字；练习进度与最好成绩都保留');
+      return;
+    }
+
     var art = {
-      id: id,
+      id: 'u_' + Date.now().toString(36),
       title: title || ('我的文章 ' + new Date().toLocaleDateString()),
       author: author || '佚名',
       source: '自选导入',
       builtin: false,
       text: text
     };
-    var list = getImported();
-    list.unshift(art);
-    saveImported(list);
+    var imp = getImported();
+    imp.unshift(art);
+    saveImported(imp);
+    closeEditor();
     viewHome();
     setTip('已导入「' + art.title + '」，' + n + ' 字' +
            (n > WARN_CHARS ? '（长文，练习时间较长，可随时退出）' : ''));
@@ -477,6 +621,7 @@
 
   /* ---------------- 练习界面 ---------------- */
   function viewPractice(id) {
+    closeEditor();
     var art = findArticle(id);
     if (!art) { location.hash = '#/'; return; }
     exitDeleteMode();          // 进入练习页时清掉删除模式状态与监听

@@ -736,3 +736,56 @@ schannel: next InitializeSecurityContext failed: CRYPT_E_REVOCATION_OFFLINE (0x8
 
 `push_to_github.py` 已改成**重试阶梯**：先 OpenSSL，再 schannel 兜底，
 直连与本地中继两种路由都各试一遍 —— 以后不用再手工判断该用哪种组合。
+
+## F23 — 文章编辑弹层（导入确认 / 卡片编辑）（2026-10-11，第 13 轮）
+
+**需求**：在「确认导入并加入列表」时新增一个编辑内容的功能。
+→ 先出方案由用户拍板范围，用户选 **「两个入口都做」**。
+
+### F23.1 设计：一套弹层，两个入口
+
+```
+openEditor(mode, art)
+  mode='import'  ← doImport() 只做轻量预检（正文非空 / ≤5 万字），然后开弹层预填导入面板
+                   真正入库发生在弹层的「确认导入」上
+  mode='edit'    ← 卡片上 ✎，预填该文章，保存后原地更新
+```
+
+- 弹层结构：`.editor_mask(遮罩) > .editor_box > head/body/foot`；
+  标题 + 作者 + 大号 textarea（`min-height:42vh`）+ 实时字数 + 就地错误行。
+- 视觉复用 `.panel` / `.btn` / `.imp_count(.warn/.over)` 的既有观感，只新写 ~50 行 CSS。
+- **刻意不点遮罩关闭**：正文可能很长，误触关掉会丢编辑内容；只认 ✕ / 取消 / Esc。
+
+### F23.2 三条必须守住的约定
+
+1. **编辑不改 id** → `nzd_progress_v1` 里的 `done / attempts / best` 全部保留，不用重练。
+   （回归里专门造了 `attempts:3, best.speed:88` 的进度来验证。）
+2. **内置文章不可编辑**，与「不可删除」一致 → 卡片上不渲染 ✎。
+3. **弹层打开时 Esc 只关弹层**，不能顺手退出删除模式 →
+   在 `escDeleteMode()` 最前面加 `if (editorEl) { closeEditor(); return; }`。
+
+### F23.3 ★ 踩到的坑：`e.target` 是 `<svg>` 不是 `<button>`
+
+✎ 用内联 SVG 做图标（避免字体依赖）。点击时 `e.target` 是 `<svg>`/`<path>`，
+而旧代码是**直接读 `e.target.dataset`** → `dataset.edit` 取不到，
+于是落到最后的兜底分支，被当成「点卡片 = 进入练习」**直接跳到打字页**了。
+
+**修法**：把 `.article_list` 的点击处理整段改为 `closest()` 解析：
+
+```js
+var goBtn   = t.closest && t.closest('[data-go]');
+var delBtn  = t.closest && t.closest('[data-del]');
+var editBtn = t.closest && t.closest('[data-edit]');
+...
+if (!card || (t.closest && t.closest('button'))) return;   // 按钮内部任何标记都不再冒泡到"进入练习"
+```
+
+⇒ **教训**：列表里的按钮只要内部可能放 SVG/图标，就**别直接读 `e.target.dataset`**。
+
+### F23.4 边界（明确没动）
+
+打字引擎 / 判定 / 逐格对齐 / 折行 / 结算 / 音效 / 主题 / 字号 / 删除与撤销 / 进度存储结构。
+
+**验收**：`regression.cjs` **56/56**（新增 `1b` 段 15 项）；`e2e_finish.cjs` 8/8；
+`file://` 直开 0 报错；`tools/measure_shift.js` 实测弹层前后
+`.home_main` 宽 1080 / left 180 **完全不变**（没有布局位移）。

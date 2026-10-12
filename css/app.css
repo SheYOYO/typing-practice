@@ -156,6 +156,20 @@ body {
 .a_card:hover .a_del,
 .a_card:focus-within .a_del { opacity: 1; transform: scale(1); }
 .a_del:hover { background: #a01f2e; }
+/* 编辑按钮：与删除键并排（在它左边），同样悬停才浮现；已完成时整体右移，避开对勾徽标 */
+.a_edit {
+  position: absolute; top: 14px; right: 38px; width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  line-height: 1; color: #fff; background: rgba(47, 157, 224, .92);
+  border: none; border-radius: 50%; cursor: pointer;
+  opacity: 0; transform: scale(.85);
+  transition: opacity .3s ease, transform .3s cubic-bezier(.25, .8, .25, 1), background .2s ease;
+}
+.a_card.is_done .a_edit { right: 72px; }
+.a_card:hover .a_edit,
+.a_card:focus-within .a_edit { opacity: 1; transform: scale(1); }
+.a_edit:hover { background: #1e88e5; }
+.a_card.is_delmode .a_edit { display: none; }
 /* 最好成绩：绝对定位在底部信息行上方，不参与布局，避免把文章名挤得上下浮动 */
 .a_best {
   position: absolute; left: 12px; right: 12px; bottom: 34px;
@@ -297,4 +311,54 @@ body {
   .count5 { grid-template-columns: repeat(3, 1fr); }
   .stars_row { gap: 16px; }
   .star_emoj { font-size: 64px; }
+}
+
+/* ---------------- 文章编辑弹层（导入确认 / 列表内编辑 共用） ----------------
+   复用 .panel / .btn / .imp_count 的观感；正文用大号 textarea。
+   刻意不点遮罩关闭：正文可能很长，误触关掉会丢编辑内容，只认 ✕ / 取消 / Esc。 */
+.editor_mask {
+  position: fixed; inset: 0; z-index: 5000;
+  background: rgba(24, 39, 58, .45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; box-sizing: border-box;
+}
+.editor_box {
+  width: min(760px, 92vw); max-height: 90vh;
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(15, 35, 60, .3);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.editor_head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 20px; border-bottom: 1px solid #e8eef5;
+}
+.editor_head h3 { margin: 0; font-size: 17px; color: #10365e; font-weight: 600; }
+.editor_close {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  font-size: 20px; line-height: 1; color: #93a2b3; background: none;
+  border: none; border-radius: 8px; cursor: pointer; transition: all .18s ease;
+}
+.editor_close:hover { color: #c02b3d; background: #fff5f7; }
+.editor_body { padding: 16px 20px 4px; overflow-y: auto; flex: 1 1 auto; }
+.editor_row { display: flex; gap: 12px; margin-bottom: 12px; }
+.editor_row input {
+  font-family: inherit; font-size: 14px; padding: 9px 12px; border-radius: 8px;
+  border: 1px solid #d5dee8; outline: none; flex: 1; min-width: 0;
+}
+.editor_row input:focus { border-color: #33AFFF; box-shadow: 0 0 0 3px rgba(51, 175, 255, .15); }
+.editor_text {
+  width: 100%; min-height: 42vh; box-sizing: border-box; resize: vertical;
+  font-family: inherit; font-size: 14px; line-height: 1.9; padding: 12px 14px;
+  border-radius: 10px; border: 1px solid #d5dee8; outline: none; color: #2c3e50;
+}
+.editor_text:focus { border-color: #33AFFF; box-shadow: 0 0 0 3px rgba(51, 175, 255, .15); }
+.editor_meta {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 10px;
+}
+.editor_hint { font-size: 12.5px; color: #93a2b3; }
+.editor_err { min-height: 20px; font-size: 13px; color: #c02b3d; padding-top: 6px; }
+.editor_foot {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px; border-top: 1px solid #e8eef5; background: #fbfdff;
 }
