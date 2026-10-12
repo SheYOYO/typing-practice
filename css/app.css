@@ -41,26 +41,19 @@ body {
 }
 .panel h2 { margin: 0 0 14px; font-size: 17px; color: #10365e; font-weight: 600; }
 
-/* 导入 */
-.import_panel .imp_row { display: flex; gap: 12px; margin-bottom: 10px; }
-.import_panel input {
-  font-family: inherit; font-size: 14px; padding: 9px 12px; border-radius: 8px;
-  border: 1px solid #d5dee8; outline: none; flex: 1;
-}
-.import_panel input:focus { border-color: #33AFFF; box-shadow: 0 0 0 3px rgba(51, 175, 255, .15); }
-#import_title { flex: 2; }
-.import_panel textarea {
-  font-family: inherit; font-size: 14px; line-height: 1.7; width: 100%; height: 130px;
-  padding: 10px 12px; border-radius: 8px; border: 1px solid #d5dee8; outline: none; resize: vertical;
-}
-.import_panel textarea:focus { border-color: #33AFFF; box-shadow: 0 0 0 3px rgba(51, 175, 255, .15); }
-.imp_actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+/* 导入：一排「组块按钮」（自定义文章 / 导入文档 / 删除 / 示例）
+   正文编辑不再占页面空间，统一走编辑器弹层，所以这里没有 input / textarea */
+.imp_actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/* 组块按钮：内联 SVG 图标 + 文字。图标用 stroke="currentColor"，
+   按钮 hover / 危险态 / 激活态换色时图标自动跟着变 */
+.imp-block { display: inline-flex; align-items: center; gap: 7px; }
+.btn-ico { flex: 0 0 auto; display: block; }
 .imp_tip { font-size: 13px; color: #2e9e5b; }
 .imp_count {
   font-size: 13px; color: #7a8798; font-variant-numeric: tabular-nums;
   padding: 2px 10px; border-radius: 20px; background: #f2f5f9; white-space: nowrap;
 }
-.imp_hint { font-size: 12.5px; color: #93a2b3; margin-top: 8px; line-height: 1.6; }
+.imp_hint { font-size: 12.5px; color: #93a2b3; margin-top: 12px; line-height: 1.6; }
 .imp_count.warn  { color: #b26a00; background: #fff5e6; }
 .imp_count.over  { color: #c02b3d; background: #ffe9ec; font-weight: 600; }
 

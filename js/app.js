@@ -116,6 +116,21 @@
       '<path d="M11.2 2.4 13.6 4.8 5.6 12.8 2.4 13.6 3.2 10.4z" stroke="#fff" stroke-width="1.5" ' +
       'stroke-linejoin="round" stroke-linecap="round"/></svg>';
 
+    /* 组块按钮用的内联 SVG 图标：一律 stroke="currentColor"，
+       这样按钮在 hover / 危险 / 激活态换色时图标自动跟着变，不用再写颜色。 */
+    function svgIco(paths) {
+      return '<svg class="btn-ico" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+        paths.map(function (d) {
+          return '<path d="' + d + '" stroke="currentColor" stroke-width="1.6" ' +
+                 'stroke-linecap="round" stroke-linejoin="round"/>';
+        }).join('') + '</svg>';
+    }
+    var ICO_PLUS  = svgIco(['M8 2.6v10.8', 'M2.6 8h10.8']);
+    var ICO_DOC   = svgIco(['M3.9 1.8h4.9l3.3 3.3v9.1H3.9z', 'M8.8 1.8v3.3h3.3']);
+    var ICO_TRASH = svgIco(['M2.6 4.3h10.8', 'M6.4 4.3V2.5h3.2v1.8',
+                            'M4 4.3l.6 8.4h6.8l.6-8.4']);
+    var ICO_BOLT  = svgIco(['M9.2 1.4 4.1 8.6h3.2l-1 6 5.1-7.2H8.2z']);
+
     var cards = list.map(function (a, i) {
       var p = prog[a.id];
       var done = p && p.done;
@@ -163,24 +178,23 @@
       '<main class="home_main">' +
       '  <section class="panel import_panel">' +
       '    <h2>导入我自己的文章</h2>' +
-      '    <div class="imp_row">' +
-      '      <input id="imp_title" placeholder="标题（可留空）" maxlength="40">' +
-      '      <input id="imp_author" placeholder="作者（可留空）" maxlength="20">' +
-      '    </div>' +
-      '    <textarea id="imp_text" placeholder="把文章正文粘贴到这里，用换行分段……"></textarea>' +
       '    <div class="imp_actions">' +
-      '      <button class="btn btn-primary" id="imp_btn">导入并加入列表</button>' +
-      '      <button class="btn" id="imp_file_btn">导入文档</button>' +
-      '      <button class="btn btn-danger' + (deleteMode ? ' is_active' : '') + '" id="imp_delmode"' +
+      '      <button class="btn btn-primary imp-block" id="imp_diy"' +
+      '        title="打开编辑框，自己写或粘贴一篇文章">' + ICO_PLUS + '自定义文章</button>' +
+      '      <button class="btn imp-block" id="imp_file_btn"' +
+      '        title="从 .txt / .md / .docx 读取，自动抓标题与作者">' + ICO_DOC + '导入文档</button>' +
+      '      <button class="btn btn-danger imp-block' + (deleteMode ? ' is_active' : '') + '" id="imp_delmode"' +
+      '        title="进入删除模式：再点文章卡片即可删除导入的文章"' +
       '        aria-pressed="' + (deleteMode ? 'true' : 'false') + '">' +
-      (deleteMode ? '退出删除模式' : '删除文章') + '</button>' +
-      '      <button class="btn" id="imp_sample">填入示例文本</button>' +
-      '      <span class="imp_count" id="imp_count">0 字</span>' +
+      ICO_TRASH + (deleteMode ? '退出删除' : '删除') + '</button>' +
+      '      <button class="btn imp-block" id="imp_sample"' +
+      '        title="打开编辑框并填入一段示例文本">' + ICO_BOLT + '示例</button>' +
       '      <span class="imp_tip" id="imp_tip"></span>' +
       '    </div>' +
       '    <input type="file" id="imp_file" accept=".txt,.text,.md,.markdown,.docx" hidden>' +
-      '    <p class="imp_hint">支持 .txt / .md / .docx；导入后会自动抓取标题与作者填入上方。' +
-           '点「导入并加入列表」会先弹出<strong>确认框</strong>，那一步仍可修改内容；入库后也能用卡片上的 ✎ 再编辑。</p>' +
+      '    <p class="imp_hint">「自定义文章」直接打开编辑框自己写或粘贴；「导入文档」支持 ' +
+           '.txt / .md / .docx，会自动抓取标题与作者。两者点「确认导入」前都能改，' +
+           '入库后也能用卡片上的 ✎ 再编辑。</p>' +
       '  </section>' +
       '  <section class="panel list_panel">' +
       '    <div class="list_head"><h2>选择要练习的文章</h2>' +
@@ -208,15 +222,18 @@
     }
     pendingNotice = '';
 
-    appEl.querySelector('#imp_btn').addEventListener('click', doImport);
-    appEl.querySelector('#imp_text').addEventListener('input', updateCount);
-    updateCount();
+    /* 「自定义文章」= 打开空白编辑框；「示例」= 打开编辑框并预填示例。
+       两者都走同一个编辑器弹层（与卡片上的 ✎、导入文档解析结果共用） */
+    appEl.querySelector('#imp_diy').addEventListener('click', function () {
+      openEditor('import', null);
+    });
     appEl.querySelector('#imp_sample').addEventListener('click', function () {
-      appEl.querySelector('#imp_title').value = '我的练习段落';
-      appEl.querySelector('#imp_text').value =
-        '读书之法，在循序而渐进，熟读而精思。\n凡读书，须要读得字字响亮，不可误一字，不可少一字，不可多一字，不可倒一字。';
-      updateCount();
-      setTip('已填入示例，可直接点「导入并加入列表」');
+      openEditor('import', {
+        title: '我的练习段落',
+        author: '',
+        text: '读书之法，在循序而渐进，熟读而精思。\n' +
+              '凡读书，须要读得字字响亮，不可误一字，不可少一字，不可多一字，不可倒一字。'
+      });
     });
     appEl.querySelector('#imp_file_btn').addEventListener('click', function () {
       var f = appEl.querySelector('#imp_file');
@@ -299,34 +316,19 @@
     if (e) e.textContent = msg || '';
   }
 
-  /* 实时字数统计（按实际参与打字的字符数计，与结算口径一致） */
-  function updateCount() {
-    var ta = appEl && appEl.querySelector('#imp_text');
-    var out = appEl && appEl.querySelector('#imp_count');
-    if (!ta || !out) return;
-    var n = countChars(ta.value || '');
-    out.textContent = n + ' 字';
-    out.className = 'imp_count' + (n > MAX_CHARS ? ' over' : (n > WARN_CHARS ? ' warn' : ''));
-    return n;
-  }
-
-  /* ---------------- 文档导入（.txt / .md / .docx） ---------------- */
-
-  function setFileVal(sel, v) { var e = appEl.querySelector(sel); if (e) e.value = v || ''; }
+  /* ---------------- 文档导入（.txt / .md / .docx） ----------------
+     读完直接打开编辑器弹层并预填解析结果，用户在弹层里校对后点「确认导入」入库。 */
 
   function loadDocument(file) {
     setTip('正在读取 ' + file.name + ' …');
     readArticleFile(file).then(function (r) {
-      setFileVal('#imp_title', r.title);
-      setFileVal('#imp_author', r.author);
-      setFileVal('#imp_text', r.body);
-      updateCount();
       var got = [];
       if (r.title) got.push('标题《' + r.title + '》');
       if (r.author) got.push('作者 ' + r.author);
       setTip('已读取 ' + file.name + '：' +
         (got.length ? '自动抓到 ' + got.join('、') : '没识别出标题和作者') +
-        '。可在上方修改后点「导入并加入列表」。');
+        '。可在编辑框里改，点「确认导入」入库。');
+      openEditor('import', { title: r.title, author: r.author, text: r.body });
     }).catch(function (err) {
       setTip('⚠ 读取失败：' + ((err && err.message) || err || '未知错误'));
     });
@@ -464,36 +466,23 @@
       .trim().slice(0, 20);
   }
 
-  /* 点「导入并加入列表」：先做一次轻量预检，再打开「确认导入」弹层。
-     真正入库发生在弹层的「确认导入」上 —— 那是入库前最后一次校对/编辑的机会。 */
-  function doImport() {
-    var text = appEl.querySelector('#imp_text').value || '';
-    text = text.replace(/\r\n?/g, '\n').replace(/\n{2,}/g, '\n').trim();
-    if (text.replace(/\s/g, '').length < 2) { setTip('⚠ 请先粘贴正文内容'); return; }
-    var n = countChars(global.Util.toChinesePunct(text));
-    if (n > MAX_CHARS) {
-      setTip('⚠ 共 ' + n + ' 字，超出上限 ' + MAX_CHARS + ' 字，请拆分后再导入');
-      return;
-    }
-    setTip('');
-    openEditor('import', null);
-  }
+  /* 四个组块按钮里的「自定义文章 / 示例 / 导入文档」都直接开这个弹层，
+     真正的入库动作发生在弹层的「确认导入」上 —— 那是入库前最后一次校对/编辑的机会。 */
 
   /* ---------------- 文章编辑弹层（导入确认 / 列表内编辑 共用一套） ----------------
-     mode='import'：预填导入面板里刚粘贴的内容，确认后才入库
-     mode='edit'  ：预填已有文章的内容，保存后原地更新（id 不变 → 进度与最好成绩都保留） */
+     mode='import'：src 为 null → 空白（自定义文章）；src 有值 → 预填（示例 / 导入文档解析结果）
+     mode='edit'  ：src = 要编辑的文章，保存后原地更新（id 不变 → 进度与最好成绩都保留） */
   var editorEl = null, editorMode = null, editorId = null;
 
-  function openEditor(mode, art) {
+  function openEditor(mode, src) {
     closeEditor();
     editorMode = mode;
-    editorId = (mode === 'edit' && art) ? art.id : null;
     var isEdit = (mode === 'edit');
-    var q = function (sel) { return appEl.querySelector(sel); };
+    editorId = (isEdit && src) ? src.id : null;
 
-    var title = isEdit ? (art.title || '') : ((q('#imp_title') || {}).value || '');
-    var author = isEdit ? (art.author || '') : ((q('#imp_author') || {}).value || '');
-    var text = isEdit ? (art.text || '') : ((q('#imp_text') || {}).value || '');
+    var title = src ? (src.title || '') : '';
+    var author = src ? (src.author || '') : '';
+    var text = src ? (src.text || '') : '';
 
     var mask = el('div', 'editor_mask');
     mask.id = 'editor_mask';

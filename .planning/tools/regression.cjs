@@ -45,24 +45,30 @@ async function enterPractice(page) {
      '仍存在 ' + await page.locator('#clear_progress').count() + ' 个');
   ok('导入 / 删除 按钮仍在（未误伤其它功能）',
      await page.locator('#imp_file_btn').count() === 1 && await page.locator('#imp_delmode').count() === 1);
+  const blocks = await page.evaluate(() => [...document.querySelectorAll('.imp_actions .btn')]
+    .map(b => b.innerText.trim()));
+  ok('四个组块按钮依次为 自定义文章 / 导入文档 / 删除 / 示例',
+     blocks.join('|') === '自定义文章|导入文档|删除|示例', blocks.join('|'));
+  ok('组块按钮内联了 SVG 图标', await page.locator('.imp_actions .btn .btn-ico').count() === 4);
+  ok('页面上不再有常驻的正文输入框（编辑改走弹层）',
+     await page.locator('#imp_text').count() === 0 && await page.locator('#imp_title').count() === 0);
 
   console.log('\n=== 1b. 文章编辑弹层（导入确认 / 卡片编辑） ===');
   await page.evaluate(() => { localStorage.clear(); });
   await page.reload({ waitUntil: 'load' });
-  await page.waitForSelector('#imp_title', { timeout: 8000 });
+  await page.waitForSelector('#imp_diy', { timeout: 8000 });
 
-  // (a) 入口一：导入确认
-  await page.fill('#imp_title', '原标题');
-  await page.fill('#imp_text', '第一句话, 第二句话.');
-  await page.click('#imp_btn');
+  // (a) 入口一：自定义文章 → 空白编辑框 → 确认导入
+  await page.click('#imp_diy');
   await page.waitForSelector('#editor_mask', { timeout: 5000 });
   const pre1 = await page.evaluate(() => ({
     t: document.querySelector('#ed_title').value,
     x: document.querySelector('#ed_text').value,
-    btn: document.querySelector('#ed_save').textContent
+    btn: document.querySelector('#ed_save').textContent,
+    head: document.querySelector('.editor_head h3').textContent
   }));
-  ok('导入时弹出「确认导入」且预填面板内容',
-     pre1.t === '原标题' && pre1.x.indexOf('第一句话') === 0 && pre1.btn === '确认导入',
+  ok('「自定义文章」打开空白「确认导入」编辑框',
+     pre1.t === '' && pre1.x === '' && pre1.btn === '确认导入' && pre1.head === '确认导入',
      JSON.stringify(pre1));
   await page.fill('#ed_title', '改过的标题');
   await page.fill('#ed_text', '改过的正文, 只有两句.');
@@ -75,9 +81,45 @@ async function enterPractice(page) {
     return { n: arts.length, title: c.querySelector('.a_name').textContent,
              text: arts[0] && arts[0].text, hasEdit: !!c.querySelector('.a_edit') };
   });
-  ok('新卡片用的是弹层里改过的标题', afterImp.title === '改过的标题', afterImp.title);
+  ok('新卡片用的是编辑框里改过的标题', afterImp.title === '改过的标题', afterImp.title);
   ok('入库正文标点已是中文', /，/.test(afterImp.text) && !/,/.test(afterImp.text), afterImp.text);
   ok('导入的卡片带 ✎ 编辑按钮', afterImp.hasEdit);
+
+  // (a2) 「导入文档」→ 解析结果直接进编辑框并预填
+  await page.setInputFiles('#imp_file', {
+    name: '测试文档.txt', mimeType: 'text/plain',
+    buffer: Buffer.from('论读书\n培根\n读书足以怡情, 足以傅彩, 足以长才.', 'utf8')
+  });
+  await page.waitForSelector('#editor_mask', { timeout: 8000 });
+  await page.waitForTimeout(300);
+  const docPre = await page.evaluate(() => ({
+    t: document.querySelector('#ed_title').value,
+    a: document.querySelector('#ed_author').value,
+    x: document.querySelector('#ed_text').value
+  }));
+  ok('导入文档：自动抓到的标题/作者/正文已预填进编辑框',
+     docPre.t === '论读书' && docPre.a === '培根' && /读书足以怡情/.test(docPre.x),
+     JSON.stringify(docPre));
+  await page.click('#ed_save');
+  await page.waitForTimeout(350);
+  const docSaved = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('nzd_articles_v1'))[0].title);
+  ok('文档导入确认后入库，标题正确', docSaved === '论读书', docSaved);
+
+  // (a3) 「示例」→ 预填示例文本
+  await page.click('#imp_sample');
+  await page.waitForSelector('#editor_mask', { timeout: 5000 });
+  await page.waitForTimeout(250);
+  const samplePre = await page.evaluate(() => ({
+    t: document.querySelector('#ed_title').value,
+    n: document.querySelector('#ed_text').value.length
+  }));
+  ok('「示例」打开编辑框并预填示例', samplePre.t === '我的练习段落' && samplePre.n > 20,
+     JSON.stringify(samplePre));
+  await page.click('#ed_cancel');
+  await page.waitForTimeout(250);
+  ok('示例确认前后取消都不会误入库', await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('nzd_articles_v1')).length) === 2);
 
   // (b) 入口二：卡片编辑，且不丢练习进度
   await page.evaluate(() => {
@@ -86,6 +128,8 @@ async function enterPractice(page) {
       [id]: { done: true, attempts: 3, best: { speed: 88, accuracy: 99, duration: 12, stars: 4 } }
     }));
   });
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('.a_card', { timeout: 8000 });
   await page.hover('.a_card');
   await page.click('.a_edit');
   await page.waitForSelector('#editor_mask', { timeout: 5000 });
@@ -94,7 +138,7 @@ async function enterPractice(page) {
     btn: document.querySelector('#ed_save').textContent
   }));
   ok('编辑弹层预填该文章内容、按钮为「保存修改」',
-     pre2.t === '改过的标题' && pre2.btn === '保存修改', JSON.stringify(pre2));
+     pre2.t === '论读书' && pre2.btn === '保存修改', JSON.stringify(pre2));
   await page.fill('#ed_title', '再改一次');
   await page.fill('#ed_text', '又改了一次的正文.');
   await page.click('#ed_save');
@@ -109,7 +153,7 @@ async function enterPractice(page) {
   });
   ok('编辑后正文已更新', afterEd.text === '又改了一次的正文。', afterEd.text);
   ok('编辑后标题已更新', afterEd.title === '再改一次', afterEd.title);
-  ok('编辑不新增文章（仍是 1 篇）', afterEd.n === 1, String(afterEd.n));
+  ok('编辑不新增文章（仍是 2 篇）', afterEd.n === 2, String(afterEd.n));
   ok('编辑后 id 不变 → 进度与最好成绩保留',
      afterEd.done && afterEd.p && afterEd.p.attempts === 3 && afterEd.p.best.speed === 88,
      JSON.stringify(afterEd.p));

@@ -275,3 +275,29 @@
 ✎ 存在性、编辑后标题/正文更新、不新增文章、**进度与最好成绩保留**、内置无 ✎/×、
 超 5 万字拦截、正文太短拦截、Esc 关闭、取消后原文未变）；
 `e2e_finish.cjs` 8/8；`file://` 直开 0 报错；弹层前后 `.home_main` 布局无位移（1080/left180 不变）。
+
+---
+
+## v0.14 — 导入区改「组块按钮」（2026-10-11）
+
+**他一句话**：把导入文档的工具面板优化成一个交互式 UI 组块按钮，命名为「自定义文章」，
+旁边放导入文档、删除、示例。→ 先出示意图与方案，用户选 **方案 B + 内联 SVG 图标**。
+
+**改了什么**：
+1. 导入面板去掉了常驻的 `#imp_title / #imp_author / #imp_text / #imp_btn / #imp_count`，
+   换成一排四个组块按钮：`#imp_diy`（主）/ `#imp_file_btn` / `#imp_delmode` / `#imp_sample`。
+2. 正文编辑统一走 `openEditor('import', src)`：
+   - `src = null` → 空白（自定义文章）
+   - `src = {title, author, text}` → 预填（示例 / 导入文档解析结果）
+   ⇒ `openEditor` 的签名从「读面板」改为「吃预填对象」，edit 模式也顺带统一了。
+3. `loadDocument()` 读完**直接开弹层并预填**（不再往面板小输入框里塞），
+   `setFileVal()` 随之删除；`updateCount()` 删除（字数改由弹层内的 `#ed_count` 管）。
+4. 「删除」按钮文案精简为 `删除` / `退出删除`（`deleteMode` 行为不变）。
+5. 图标用**内联 SVG + `stroke="currentColor"`**：hover / `.btn-danger` / `.is_active` 换色时图标自动跟随，
+   不用为每个状态再写一套颜色。四个图标：plus / 文档 / 垃圾桶 / 闪电。
+6. 清理死代码：`doImport()`、`updateCount()`、`setFileVal()`，以及 CSS 里
+   `.import_panel .imp_row / input / textarea / #import_title` 一组已无引用的规则。
+
+**验收**：`regression.cjs` **63/63**（新增：按钮顺序与文案、4 个 `.btn-ico` 存在、
+页面已无常驻输入框、**导入文档解析结果预填进弹层**（用 `setInputFiles` 造的内存 .txt 验证）、
+示例预填、取消不误入库）；`e2e_finish.cjs` 8/8；`file://` 直开 0 报错。

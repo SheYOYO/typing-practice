@@ -789,3 +789,62 @@ if (!card || (t.closest && t.closest('button'))) return;   // 按钮内部任何
 **验收**：`regression.cjs` **56/56**（新增 `1b` 段 15 项）；`e2e_finish.cjs` 8/8；
 `file://` 直开 0 报错；`tools/measure_shift.js` 实测弹层前后
 `.home_main` 宽 1080 / left 180 **完全不变**（没有布局位移）。
+
+## F24 — 导入区改「组块按钮」+ 编辑弹层统一入口（2026-10-11，第 14 轮）
+
+**需求**：把导入面板优化成一排交互式「UI 组块按钮」：`自定义文章`（命名）+ 旁边
+`导入文档 / 删除 / 示例`。→ 先出示意图与方案，用户选 **方案 B（点按钮直接弹层）+ 内联 SVG 图标**。
+
+### F24.1 结构变化
+
+改前（一排按钮 + 常驻输入区挤在一起）：
+
+```
+[标题___][作者___]  [正文 textarea]  [导入并加入列表][导入文档][删除文章][填入示例文本] · 0 字
+```
+
+改后（只有一排组块按钮，正文编辑全部走弹层）：
+
+```
+[＋ 自定义文章] [📄 导入文档] [🗑 删除] [⚡ 示例]   · 提示
+```
+
+### F24.2 `openEditor` 的签名统一（本轮最关键的收敛）
+
+```js
+openEditor('import', null)                              // 自定义文章：空白
+openEditor('import', {title, author, text})             // 示例 / 导入文档解析结果：预填
+openEditor('edit',   article)                           // 卡片 ✎：编辑已有文章
+```
+
+⇒ 三个入口 + 卡片编辑**全部**收敛到一个 `src` 预填对象，`openEditor` 不再去读页面上的面板元素。
+这也让 `loadDocument()` 从「往面板小输入框里塞值」变成「直接开弹层预填」，少一次转手。
+
+### F24.3 内联 SVG 图标的正确姿势
+
+四个图标（plus / 文档 / 垃圾桶 / 闪电）统一由一个小工厂生成，**只用 `stroke="currentColor"`**：
+
+```js
+function svgIco(paths) {
+  return '<svg class="btn-ico" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+    paths.map(d => '<path d="' + d + '" stroke="currentColor" stroke-width="1.6" ' +
+                   'stroke-linecap="round" stroke-linejoin="round"/>').join('') + '</svg>';
+}
+```
+
+好处：按钮 hover（`.btn:hover` 变蓝）、危险态（`.btn-danger` 红字）、激活态（`.is_active` 红底白字）
+**换色时图标自动跟随**，不用为每个状态各写一套图标颜色。
+
+### F24.4 一并清掉的死代码
+
+`doImport()`、`updateCount()`、`setFileVal()`，
+以及 CSS 里 `.import_panel .imp_row / input / textarea / #import_title`
+（`grep` 确认全项目 0 引用后删除）。
+
+### F24.5 边界（没动）
+
+打字引擎 / 判定 / 逐格对齐 / 折行 / 结算 / 音效 / 主题 / 字号 / 卡片 ✎ / 删除与撤销 /
+进度存储结构 —— 本轮只重构了主页导入区的外壳与入口。
+
+**验收**：`regression.cjs` **63/63**（新增 7 项，其中「导入文档预填」用
+`page.setInputFiles` 塞内存 .txt 验证）；`e2e_finish.cjs` 8/8；`file://` 直开 0 报错。
